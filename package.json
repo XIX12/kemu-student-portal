@@ -1,0 +1,12 @@
+{
+  "name": "kemuportal",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "build": "node build.mjs",
+    "start": "node server.mjs"
+  },
+  "dependencies": {}
+}
