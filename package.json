@@ -1,6 +1,6 @@
 {
   "name": "kemuportal",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,5 @@
     "build": "node build.mjs",
     "start": "node server.mjs"
   },
-  "dependencies": {
-    "mysql2": "^3.14.3"
-  }
+  "dependencies": {}
 }
