@@ -4,14 +4,15 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import mysql from 'mysql2/promise';
-import { jwtVerify } from 'jose';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, 'public');
 const distDir = path.join(root, 'dist');
 const sourceDir = await fs.access(distDir).then(() => distDir).catch(() => publicDir);
 const port = Number(process.env.PORT || 3000);
-const adminEmail = String(process.env.KEMU_ADMIN_EMAIL || '').trim().toLowerCase();
+const adminUsername = String(process.env.ADMIN_USERNAME || 'admin').trim();
+const adminPassword = String(process.env.ADMIN_PASSWORD || '').trim();
+const defaultStudentPassword = String(process.env.DEFAULT_STUDENT_PASSWORD || '123456');
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -70,6 +71,10 @@ function normalizeEmail(value) {
   return safe(value).toLowerCase();
 }
 
+function passwordHash(value) {
+  return hash(String(value));
+}
+
 function publicOrigin(value) {
   try {
     const parsed = new URL(value);
@@ -108,6 +113,7 @@ async function initializeDatabase() {
       student_number VARCHAR(32) NOT NULL UNIQUE,
       full_name VARCHAR(120) NOT NULL,
       email VARCHAR(190) NOT NULL UNIQUE,
+      password_hash CHAR(64) NULL,
       programme VARCHAR(160) NOT NULL,
       year_level TINYINT UNSIGNED NOT NULL DEFAULT 1,
       campus VARCHAR(80) NOT NULL DEFAULT 'Main Campus',
@@ -181,14 +187,16 @@ async function seedDemoData(db) {
       [createId(), code, title, lecturer, credits, capacity]
     );
   }
+  try { await db.query('ALTER TABLE kemu_students ADD COLUMN password_hash CHAR(64) NULL'); } catch (error) { if (!String(error.message).includes('Duplicate column')) throw error; }
+  await db.query("UPDATE kemu_students SET password_hash = ? WHERE password_hash IS NULL OR password_hash = ''", [passwordHash(defaultStudentPassword)]);
   const [students] = await db.query('SELECT id FROM kemu_students WHERE email = ?', ['amara.njeri@students.kemu.ac.ke']);
   let studentId = students[0]?.id;
   if (!studentId) {
     studentId = createId();
     await db.query(
-      `INSERT INTO kemu_students (id, student_number, full_name, email, programme, year_level, campus)
-       VALUES (?, 'KEMU/IS/2024/0142', 'Amara Njeri', 'amara.njeri@students.kemu.ac.ke', 'BSc. Information Science', 3, 'Main Campus')`,
-      [studentId]
+      `INSERT INTO kemu_students (id, student_number, full_name, email, password_hash, programme, year_level, campus)
+       VALUES (?, 'KEMU/IS/2024/0142', 'Amara Njeri', 'amara.njeri@students.kemu.ac.ke', ?, 'BSc. Information Science', 3, 'Main Campus')`,
+      [studentId, passwordHash(defaultStudentPassword)]
     );
   }
   const [courseRows] = await db.query('SELECT id FROM kemu_courses WHERE code IN (?, ?, ?, ?)', ['BIS 312', 'BIS 315', 'BIS 321', 'COM 304']);
@@ -209,38 +217,18 @@ async function readBody(req) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw Object.assign(new Error('Request body must be valid JSON'), { httpStatus: 400 }); }
 }
 
-async function userFromPreviewJwt(token) {
-  const secret = process.env.MANUS_JWT_SECRET;
-  if (!secret || token.split('.').length !== 3) return null;
-  try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), { algorithms: ['HS256'] });
-    const appId = payload.appId ?? payload.app_id ?? payload.clientId;
-    if (appId && process.env.MANUS_PROJECT_ID && String(appId) !== String(process.env.MANUS_PROJECT_ID)) return null;
-    return {
-      openId: safe(payload.openId || payload.open_id || payload.sub),
-      name: safe(payload.name || payload.fullName || payload.displayName, 'KeMU user'),
-      email: normalizeEmail(payload.email || payload.userEmail || payload.accountEmail)
-    };
-  } catch {
-    return null;
-  }
-}
-
 async function identityForRequest(req) {
-  const token = parseCookies(req).webdev_app_session;
+  const token = parseCookies(req).kemu_session;
   if (!token || !databaseReady) return null;
-  let identity = await userFromPreviewJwt(token);
-  if (!identity?.email) {
-    const [rows] = await databasePool().query(
-      'SELECT open_id, name, email FROM kemu_sessions WHERE token_hash = ? AND expires_at > CURRENT_TIMESTAMP(3) LIMIT 1',
-      [hash(token)]
-    );
-    if (!rows[0]) return null;
-    identity = { openId: rows[0].open_id, name: rows[0].name, email: normalizeEmail(rows[0].email) };
-  }
-  const [studentRows] = await databasePool().query('SELECT id FROM kemu_students WHERE LOWER(email) = ? LIMIT 1', [identity.email]);
-  const role = adminEmail && identity.email === adminEmail ? 'admin' : (studentRows[0] ? 'student' : 'guest');
-  return { ...identity, role, studentId: studentRows[0]?.id || null };
+  const [rows] = await databasePool().query(
+    'SELECT open_id, name, email FROM kemu_sessions WHERE token_hash = ? AND expires_at > CURRENT_TIMESTAMP(3) LIMIT 1',
+    [hash(token)]
+  );
+  if (!rows[0]) return null;
+  if (rows[0].open_id === 'admin') return { openId: 'admin', name: rows[0].name, email: rows[0].email, role: 'admin', studentId: null };
+  const [studentRows] = await databasePool().query('SELECT id, student_number, full_name, email FROM kemu_students WHERE id = ? LIMIT 1', [rows[0].open_id]);
+  if (!studentRows[0]) return null;
+  return { openId: rows[0].open_id, name: studentRows[0].name, email: studentRows[0].email, role: 'student', studentId: studentRows[0].id };
 }
 
 async function requireIdentity(req, res) {
@@ -250,7 +238,7 @@ async function requireIdentity(req, res) {
     return null;
   }
   if (identity.role === 'guest') {
-    json(res, 403, { error: 'account_not_registered', message: 'Your Manus account is not linked to a KeMU student or administrator record yet.' });
+    json(res, 403, { error: 'account_not_registered', message: 'Your account is not linked to a KeMU student record yet.' });
     return null;
   }
   return identity;
@@ -272,64 +260,33 @@ function requestOrigin(req) {
   return `${proto}://${host}`;
 }
 
-async function handleLogin(req, res, url) {
-  const origin = publicOrigin(url.searchParams.get('redirect'));
-  const portal = safe(process.env.MANUS_OAUTH_PORTAL_URL);
-  if (!origin || !portal || !process.env.MANUS_PROJECT_ID) {
-    json(res, 503, { error: 'oauth_not_configured', message: 'Manus login is not ready in this environment.' });
-    return;
+async function handleLogin(req, res) {
+  if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return; }
+  const body = await readBody(req);
+  const identifier = safe(body.identifier);
+  const password = safe(body.password);
+  if (!identifier || !password) { json(res, 400, { error: 'credentials_required', message: 'Enter your registration number or admin username and password.' }); return; }
+  let identity;
+  if (identifier.toLowerCase() === adminUsername.toLowerCase() && adminPassword && password === adminPassword) {
+    identity = { openId: 'admin', name: 'Portal Administrator', email: adminUsername, role: 'admin', studentId: null };
+  } else {
+    const [rows] = await databasePool().query('SELECT id, full_name, email, password_hash FROM kemu_students WHERE LOWER(student_number) = LOWER(?) LIMIT 1', [identifier]);
+    if (!rows[0] || rows[0].password_hash !== passwordHash(password)) { json(res, 401, { error: 'invalid_credentials', message: 'Invalid registration number or password.' }); return; }
+    identity = { openId: rows[0].id, name: rows[0].full_name, email: rows[0].email, role: 'student', studentId: rows[0].id };
   }
-  const nonce = crypto.randomBytes(24).toString('base64url');
-  const redirectUri = `${origin}/api/auth/callback`;
-  const state = Buffer.from(JSON.stringify({ nonce, redirectUri })).toString('base64url');
-  const authUrl = new URL(`${portal.replace(/\/$/, '')}/app-auth`);
-  authUrl.searchParams.set('appId', process.env.MANUS_PROJECT_ID);
-  authUrl.searchParams.set('redirectUri', redirectUri);
-  authUrl.searchParams.set('state', state);
-  authUrl.searchParams.set('responseType', 'code');
-  res.writeHead(302, { Location: authUrl.toString(), 'Set-Cookie': cookie('kemu_oauth_nonce', nonce, { maxAge: 600 }) });
-  res.end();
-}
-
-async function handleCallback(req, res, url) {
-  const state = safe(url.searchParams.get('state'));
-  const code = safe(url.searchParams.get('code'));
-  let parsed;
-  try { parsed = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')); } catch { json(res, 400, { error: 'invalid_oauth_state' }); return; }
-  const nonceCookie = parseCookies(req).kemu_oauth_nonce;
-  if (!code || !parsed.nonce || parsed.nonce !== nonceCookie || !publicOrigin(parsed.redirectUri)) {
-    json(res, 400, { error: 'oauth_state_mismatch' });
-    return;
-  }
-  const api = safe(process.env.MANUS_OAUTH_API_URL);
-  try {
-    const exchange = await fetch(`${api}/webdev.v1.WebDevAuthPublicService/ExchangeToken`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId: process.env.MANUS_PROJECT_ID, grantType: 'authorization_code', code, redirectUri: parsed.redirectUri })
-    });
-    if (!exchange.ok) throw new Error(`OAuth token exchange failed (${exchange.status})`);
-    const token = await exchange.json();
-    const info = await fetch(`${api}/webdev.v1.WebDevAuthPublicService/GetUserInfo`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token.accessToken}` }, body: JSON.stringify({ accessToken: token.accessToken }) });
-    if (!info.ok) throw new Error(`OAuth identity lookup failed (${info.status})`);
-    const user = await info.json();
-    const sessionToken = crypto.randomBytes(32).toString('base64url');
-    await databasePool().query(
-      `INSERT INTO kemu_sessions (token_hash, open_id, name, email, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 30 DAY))
-       ON DUPLICATE KEY UPDATE open_id = VALUES(open_id), name = VALUES(name), email = VALUES(email), expires_at = VALUES(expires_at)`,
-      [hash(sessionToken), safe(user.openId || user.open_id || user.id), safe(user.name || user.fullName, 'KeMU user'), normalizeEmail(user.email)]
-    );
-    const destination = `${publicOrigin(parsed.redirectUri)}/?auth=success`;
-    res.writeHead(302, { Location: destination, 'Set-Cookie': [cookie('webdev_app_session', sessionToken, { maxAge: 2592000 }), cookie('kemu_oauth_nonce', '', { maxAge: 0 })] });
-    res.end();
-  } catch (error) {
-    json(res, 502, { error: 'oauth_failed', message: error.message });
-  }
+  const sessionToken = crypto.randomBytes(32).toString('base64url');
+  await databasePool().query(
+    `INSERT INTO kemu_sessions (token_hash, open_id, name, email, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 30 DAY))`,
+    [hash(sessionToken), identity.openId, identity.name, identity.email]
+  );
+  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': cookie('kemu_session', sessionToken, { maxAge: 2592000 }) });
+  res.end(JSON.stringify({ ok: true, identity }));
 }
 
 async function handleLogout(req, res) {
-  const token = parseCookies(req).webdev_app_session;
+  const token = parseCookies(req).kemu_session;
   if (token && databaseReady) await databasePool().query('DELETE FROM kemu_sessions WHERE token_hash = ?', [hash(token)]);
-  const headers = { 'Set-Cookie': cookie('webdev_app_session', '', { maxAge: 0 }), 'Clear-Site-Data': '"cookies"' };
+  const headers = { 'Set-Cookie': cookie('kemu_session', '', { maxAge: 0 }), 'Clear-Site-Data': '"cookies"' };
   if (req.method === 'GET') {
     res.writeHead(302, { ...headers, Location: '/' });
     res.end();
@@ -365,6 +322,12 @@ async function adminSnapshot() {
     `SELECT r.id, r.registered_at, s.id AS student_id, s.full_name AS student_name, s.student_number, c.id AS course_id, c.code, c.title
      FROM kemu_registrations r JOIN kemu_students s ON s.id = r.student_id JOIN kemu_courses c ON c.id = r.course_id
      WHERE r.status = 'registered' ORDER BY r.registered_at DESC`
+  );
+  const [results] = await db.query(
+    `SELECT r.id, r.student_id, r.semester, r.marks, r.grade, r.grade_point, r.status,
+            s.full_name AS student_name, s.student_number, c.id AS course_id, c.code, c.title, c.credits
+     FROM kemu_results r JOIN kemu_students s ON s.id = r.student_id JOIN kemu_courses c ON c.id = r.course_id
+     ORDER BY r.updated_at DESC, s.full_name, c.code`
   );
   return {
     students,
@@ -427,8 +390,7 @@ async function api(req, res, url) {
     json(res, databaseReady ? 200 : 503, { ok: databaseReady, database: databaseReady ? 'ready' : 'starting' });
     return;
   }
-  if (pathname === '/api/auth/login' && req.method === 'GET') return handleLogin(req, res, url);
-  if (pathname === '/api/auth/callback' && req.method === 'GET') return handleCallback(req, res, url);
+  if (pathname === '/api/auth/login' && req.method === 'POST') return handleLogin(req, res);
   if (pathname === '/api/auth/logout' && ['GET', 'POST'].includes(req.method)) return handleLogout(req, res);
   if (pathname === '/api/auth/me' && req.method === 'GET') {
     const identity = await identityForRequest(req);
@@ -460,7 +422,7 @@ async function api(req, res, url) {
   if (pathname === '/api/admin/students' && req.method === 'POST') {
     const identity = await requireAdmin(req, res); if (!identity) return;
     const body = await readBody(req);
-    const fullName = safe(body.full_name), email = normalizeEmail(body.email), programme = safe(body.programme), campus = safe(body.campus, 'Main Campus');
+    const fullName = safe(body.full_name), email = normalizeEmail(body.email || `${safe(body.student_number).replace(/[^a-z0-9]/gi, '').toLowerCase()}@students.kemu.ac.ke`), programme = safe(body.programme), campus = safe(body.campus, 'Main Campus');
     const yearLevel = Math.min(8, Math.max(1, Number(body.year_level || 1)));
     if (!fullName || !email || !programme || !email.includes('@')) throw Object.assign(new Error('Name, valid email, programme, and year are required'), { httpStatus: 400 });
     const studentNumber = safe(body.student_number) || `KEMU/${new Date().getFullYear()}/${String(crypto.randomInt(1000, 9999))}`;
