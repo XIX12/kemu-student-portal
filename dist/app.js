@@ -1,6 +1,4 @@
 const logoPath = '/manus-storage/KeMU-Corporate-Logo-Full-1_f6fcbf97.png';
-const logoIconPath = '/manus-storage/kemu-icon.png';
-const brandMark = (size = 40) => `<span class="brand-mark" style="width:${size}px;height:${size}px" aria-hidden="true"><img src="${logoIconPath}" alt="KeMU" width="${size}" height="${size}" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block" /></span>`;
 
 const iconPaths = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
@@ -30,14 +28,14 @@ const iconPaths = {
 const icon = (name, className = '') => `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[name] || iconPaths.info}</svg>`;
 
 const studentNav = [
-  ['overview', 'Overview', 'grid'], ['profile', 'My Profile', 'user'], ['registration', 'Course Registration', 'book'], ['timetable', 'Timetable', 'calendar'],
+  ['overview', 'Overview', 'grid'], ['registration', 'Course Registration', 'book'], ['timetable', 'Timetable', 'calendar'],
   ['results', 'Results', 'chart'], ['fees', 'Fees', 'wallet'], ['library', 'Library', 'library'], ['support', 'Support', 'headset']
 ];
 const adminNav = [
-  ['admin', 'Admin Overview', 'grid'], ['students', 'Students', 'user'], ['courses', 'Unit Management', 'book'], ['registrations', 'Registrations', 'calendar']
+  ['admin', 'Admin Overview', 'grid'], ['students', 'Students', 'user'], ['courses', 'Courses', 'book'], ['registrations', 'Registrations', 'calendar'], ['results', 'Results & Slips', 'chart']
 ];
 
-const state = { auth: null, data: null, activeSection: 'overview', mobileMenu: false, expandedCourses: new Set(), selectedUnits: new Set(), unitFilter: '', loading: true, loginError: '', editingStudentId: null, editingCourseId: null, unitAdminFilter: '', selectedProgramme: '', adminSelectedStudent: '', adminSelectedUnits: new Set(), adminUnitFilter: '' };
+const state = { auth: null, data: null, activeSection: 'overview', mobileMenu: false, expandedCourses: new Set(), loading: true };
 let toastTimer;
 
 async function apiRequest(path, options = {}) {
@@ -60,7 +58,7 @@ async function bootstrap() {
     if (!auth.authenticated) { state.auth = null; state.data = null; state.loading = false; render(); return; }
     state.auth = auth.identity;
     state.data = await apiRequest('/api/bootstrap');
-    state.activeSection = state.auth.role === 'admin' ? 'admin' : 'profile';
+    state.activeSection = state.auth.role === 'admin' ? 'admin' : 'overview';
   } catch (error) {
     state.auth = null;
     state.data = null;
@@ -78,50 +76,21 @@ function showToast(message, type = '') {
   toastTimer = setTimeout(() => { region.innerHTML = ''; }, 3600);
 }
 
-function formatMoney(value) {
-  return Number(value || 0).toLocaleString('en-KE');
-}
-
 function loginView(message = '') {
-  const msg = message || state.loginError;
-  return `<div class="login-page">
-  <div class="login-shell login-shell-simple">
-    <div class="login-card">
-      <div class="login-brand">
-        ${brandMark(52)}
-        <div class="login-brand-text">
-          <strong>Kenya Methodist University</strong>
-          <span>Student Portal</span>
-        </div>
-      </div>
-      ${msg ? `<div class="login-message" role="alert">${icon('warning')}<span>${escapeHtml(msg)}</span></div>` : ''}
-      <form id="local-login-form" class="login-form" autocomplete="on">
-        <label class="field">
-          <span>Registration number</span>
-          <input name="student_number" type="text" required autocomplete="username" placeholder="Reg" />
-        </label>
-        <label class="field">
-          <span>Password</span>
-          <input name="password" type="password" required autocomplete="current-password" placeholder="Enter password" />
-        </label>
-        <button type="submit" class="primary-button login-button">Sign in ${icon('arrow')}</button>
-      </form>
-    </div>
-  </div>
-</div>`;
+  const loginUrl = `/api/auth/login?redirect=${encodeURIComponent(window.location.origin)}`;
+  return `<div class="login-page"><div class="login-card"><div class="login-brand"><img src="${logoPath}" alt="Kenya Methodist University" /><span>STUDENT PORTAL</span></div><div class="login-mark">${icon('book')}</div><span class="eyebrow">Kenya Methodist University</span><h1>Keep your academic life moving.</h1><p>Sign in with your Manus account to access course registration, your timetable, results, and student support.</p>${message ? `<div class="login-message">${icon('info')}<span>${message}</span></div>` : ''}<a class="primary-button login-button" href="${loginUrl}">Sign in to KeMU Portal ${icon('arrow')}</a><div class="login-note">Your access is linked to your KeMU student or administrator record. Ask the portal administrator if your account is not yet registered.</div></div><div class="login-side"><span class="eyebrow">A focused academic command centre</span><h2>Make space for the work that matters.</h2><p>Register units, see what is next, and keep every part of your semester in one calm place.</p><div class="login-side-stat"><strong>01</strong><span>Secure account access</span></div><div class="login-side-stat"><strong>02</strong><span>Live registration status</span></div><div class="login-side-stat"><strong>03</strong><span>Admin-managed records</span></div></div></div>`;
 }
-
 
 function navItems() { return state.auth?.role === 'admin' ? adminNav : studentNav; }
 function currentTitle() { return (navItems().find(item => item[0] === state.activeSection) || navItems()[0])[1]; }
 
 function sidebar() {
-  return `<aside class="sidebar ${state.mobileMenu ? 'open' : ''}"><div class="brand-lockup">${brandMark(36)}<div class="brand-label">${state.auth?.role === 'admin' ? 'Administrator Console' : 'Student Portal'} · T3 2026</div></div><span class="nav-label">${state.auth?.role === 'admin' ? 'Management' : 'Workspace'}</span><nav class="nav-list" aria-label="Primary navigation">${navItems().map(([id, label, glyph]) => `<button class="nav-item ${state.activeSection === id ? 'active' : ''}" data-nav="${id}" aria-current="${state.activeSection === id ? 'page' : 'false'}"><span class="nav-icon">${icon(glyph)}</span><span>${label}</span></button>`).join('')}</nav><div class="sidebar-bottom"><div class="help-card"><span class="nav-icon" style="color:var(--teal-deep)">${icon(state.auth?.role === 'admin' ? 'info' : 'headset')}</span><strong>${state.auth?.role === 'admin' ? 'Admin guidance' : 'Need a hand?'}</strong><p>${state.auth?.role === 'admin' ? 'Add students and courses here, then manage their registrations.' : 'Find quick answers or reach the Student Help Desk.'}</p><button data-nav="${state.auth?.role === 'admin' ? 'admin' : 'support'}">Open ${state.auth?.role === 'admin' ? 'admin' : 'support'} ${icon('arrow')}</button></div></div></aside>`;
+  return `<aside class="sidebar ${state.mobileMenu ? 'open' : ''}"><div class="brand-lockup"><img src="${logoPath}" alt="Kenya Methodist University" /><div class="brand-label">${state.auth?.role === 'admin' ? 'Administrator Console' : 'Student Portal'} · 2026/27</div></div><span class="nav-label">${state.auth?.role === 'admin' ? 'Management' : 'Workspace'}</span><nav class="nav-list" aria-label="Primary navigation">${navItems().map(([id, label, glyph]) => `<button class="nav-item ${state.activeSection === id ? 'active' : ''}" data-nav="${id}" aria-current="${state.activeSection === id ? 'page' : 'false'}"><span class="nav-icon">${icon(glyph)}</span><span>${label}</span></button>`).join('')}</nav><div class="sidebar-bottom"><div class="help-card"><span class="nav-icon" style="color:var(--teal-deep)">${icon(state.auth?.role === 'admin' ? 'info' : 'headset')}</span><strong>${state.auth?.role === 'admin' ? 'Admin guidance' : 'Need a hand?'}</strong><p>${state.auth?.role === 'admin' ? 'Add students and courses here, then manage their registrations.' : 'Find quick answers or reach the Student Help Desk.'}</p><button data-nav="${state.auth?.role === 'admin' ? 'admin' : 'support'}">Open ${state.auth?.role === 'admin' ? 'admin' : 'support'} ${icon('arrow')}</button></div></div></aside>`;
 }
 
 function topbar() {
   const roleLabel = state.auth?.role === 'admin' ? 'Portal administrator' : state.data?.student?.programme || 'KeMU student';
-  return `<header class="topbar"><div class="topbar-left"><button class="mobile-toggle" data-action="toggle-menu" aria-label="Open navigation">${icon(state.mobileMenu ? 'close' : 'menu')}</button><div class="breadcrumb">KeMU Student Portal <span>/ ${currentTitle()}</span></div></div><div class="topbar-right"><span class="topbar-term">Trimester 3, 2026</span><button class="icon-button" data-action="notifications" aria-label="View notifications">${icon('bell')}<span class="notification-dot"></span></button><div class="profile-trigger"><span class="avatar">${initials(state.auth?.name || 'KeMU')}</span><span class="profile-copy"><strong>${escapeHtml(state.auth?.name || 'KeMU user')}</strong><span>${escapeHtml(roleLabel)}</span></span></div><button class="signout-button" data-action="logout" aria-label="Sign out">${icon('logout')}<span>Sign out</span></button></div></header>`;
+  return `<header class="topbar"><div class="topbar-left"><button class="mobile-toggle" data-action="toggle-menu" aria-label="Open navigation">${icon(state.mobileMenu ? 'close' : 'menu')}</button><div class="breadcrumb">KeMU Student Portal <span>/ ${currentTitle()}</span></div></div><div class="topbar-right"><span class="topbar-term">Semester 1, 2026/2027</span><button class="icon-button" data-action="notifications" aria-label="View notifications">${icon('bell')}<span class="notification-dot"></span></button><div class="profile-trigger"><span class="avatar">${initials(state.auth?.name || 'KeMU')}</span><span class="profile-copy"><strong>${escapeHtml(state.auth?.name || 'KeMU user')}</strong><span>${escapeHtml(roleLabel)}</span></span></div><button class="signout-button" data-action="logout" aria-label="Sign out">${icon('logout')}<span>Sign out</span></button></div></header>`;
 }
 
 function initials(name) { return safeText(name).split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() || 'KM'; }
@@ -130,546 +99,90 @@ function escapeHtml(value) { return safeText(value).replace(/[&<>'"]/g, char => 
 function number(value) { return Number(value || 0); }
 function formatDate(value) { return value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'; }
 
-function profileView() {
-  const s = state.data?.student || {};
-  const fees = state.data?.fees?.summary || {};
-  const results = state.data?.results?.summary || {};
-  const regs = state.data?.registrations || [];
-  return `<section class="page-header"><div><span class="eyebrow">Student profile</span><h1>${escapeHtml(s.full_name || 'Student')}</h1><p>Your official portal record and academic identity.</p></div></section>
-  <div class="profile-layout">
-    <div class="panel profile-card">
-      <div class="profile-hero">
-        <span class="avatar profile-avatar">${initials(s.full_name || 'KM')}</span>
-        <div>
-          <h2>${escapeHtml(s.full_name || '—')}</h2>
-          <p class="profile-reg">${escapeHtml(s.student_number || '—')}</p>
-          <span class="badge success">Active student</span>
-        </div>
-      </div>
-      <dl class="profile-dl">
-        <div><dt>Programme</dt><dd>${escapeHtml(s.programme || '—')}</dd></div>
-        <div><dt>Year of study</dt><dd>Year ${s.year_level || '—'}</dd></div>
-        <div><dt>Date of birth</dt><dd>${formatDate(s.date_of_birth)}</dd></div>
-        <div><dt>Age</dt><dd>${s.age != null ? s.age : '—'}</dd></div>
-        <div><dt>Campus</dt><dd>${escapeHtml(s.campus || 'Main Campus')}</dd></div>
-        <div><dt>Email</dt><dd>${escapeHtml(s.email || '—')}</dd></div>
-        <div><dt>ID issue date</dt><dd>${formatDate(s.issue_date)}</dd></div>
-        <div><dt>ID expiry date</dt><dd>${formatDate(s.expiry_date)}</dd></div>
-      </dl>
-    </div>
-    <div class="profile-side">
-      <div class="stat-grid profile-stats">
-        <article class="stat-card"><span class="stat-label">Registered units</span><strong>${regs.length}</strong></article>
-        <article class="stat-card"><span class="stat-label">Fee balance</span><strong>KES ${formatMoney(fees.balance)}</strong></article>
-        <article class="stat-card"><span class="stat-label">CGPA</span><strong>${results.cgpa ?? '—'}</strong></article>
-        <article class="stat-card"><span class="stat-label">Credits earned</span><strong>${results.totalCredits || 0}</strong></article>
-      </div>
-      <div class="panel">
-        <div class="panel-header"><h2>Quick links</h2></div>
-        <div class="profile-links">
-          <button type="button" class="secondary-button" data-nav="fees">View fee statement ${icon('arrow')}</button>
-          <button type="button" class="secondary-button" data-nav="results">View results ${icon('arrow')}</button>
-          <button type="button" class="secondary-button" data-nav="registration">Course registration ${icon('arrow')}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
-}
+function pageHeading(title, copy, badge = '') { return `<div class="page-heading"><div><span class="eyebrow">${state.auth?.role === 'admin' ? 'Management workspace' : 'Semester 1, 2026/2027'}</span><h1>${title}</h1><p>${copy}</p></div>${badge ? `<span class="status-pill">${badge}</span>` : ''}</div>`; }
+function kpi(iconName, label, value, meta, tone = '') { return `<article class="kpi-card"><div class="kpi-top"><span class="eyebrow">${label}</span><span class="kpi-icon ${tone}">${icon(iconName)}</span></div><div class="kpi-value">${value}</div><div class="kpi-meta">${meta}</div></article>`; }
 
 function studentOverview() {
-  const s = state.data?.student || {};
-  const regs = state.data?.registrations || [];
-  const fees = state.data?.fees?.summary || {};
-  const results = state.data?.results?.summary || {};
-  return `<section class="page-header"><div><span class="eyebrow">Student overview</span><h1>Welcome back, ${escapeHtml((s.full_name || '').split(' ')[0] || 'student')}</h1><p>${escapeHtml(s.programme || '')} · ${escapeHtml(s.student_number || '')} · Year ${s.year_level || '—'}</p></div><button type="button" class="secondary-button" data-nav="profile">View full profile ${icon('user')}</button></section>
-  <div class="stat-grid">
-    <article class="stat-card"><span class="stat-label">Active units</span><strong>${regs.length}</strong><span class="stat-meta">Registered this semester</span></article>
-    <article class="stat-card"><span class="stat-label">Fee balance</span><strong>KES ${formatMoney(fees.balance)}</strong><span class="stat-meta">${fees.semesters || 0} semester(s) on statement</span></article>
-    <article class="stat-card"><span class="stat-label">CGPA</span><strong>${results.cgpa ?? '—'}</strong><span class="stat-meta">${results.semestersCompleted || 0} semester(s) completed</span></article>
-    <article class="stat-card"><span class="stat-label">ID validity</span><strong>${formatDate(s.expiry_date)}</strong><span class="stat-meta">Issued ${formatDate(s.issue_date)}</span></article>
-  </div>
-  <div class="panel"><div class="panel-header"><h2>Current registrations</h2><button class="text-button" data-nav="registration">Manage ${icon('arrow')}</button></div>
-  ${regs.length ? `<div class="table-wrap"><table><thead><tr><th>Code</th><th>Title</th><th>Credits</th><th>Lecturer</th></tr></thead><tbody>${regs.map(r => `<tr><td>${escapeHtml(r.code)}</td><td>${escapeHtml(r.title)}</td><td>${r.credits}</td><td>${escapeHtml(r.lecturer)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty-copy">No active course registrations yet. Open Course Registration to enrol.</p>'}
-  </div>`;
+  const student = state.data.student;
+  const registrations = state.data.registrations || [];
+  const credits = registrations.reduce((sum, course) => sum + number(course.credits), 0);
+  const available = (state.data.courses || []).filter(course => !course.registered).length;
+  return `${pageHeading('Overview', 'Your academic pulse, at a glance.', '● Account connected')}<div class="welcome-panel"><div><span class="eyebrow">Tuesday, 08 October 2026</span><h2>Keep your semester moving.</h2><p>Good morning, ${escapeHtml(student.full_name.split(' ')[0])}. Your registration record is connected and ready to manage.</p><div class="hero-profile"><span class="avatar">${initials(student.full_name)}</span><div><strong>${escapeHtml(student.full_name)}</strong><span>Year ${number(student.year_level)} · ${escapeHtml(student.programme)} · ${escapeHtml(student.campus)}</span></div></div></div><span class="term-pill">Semester 1, 2026/2027</span></div><div class="kpi-row">${kpi('book', 'Registered units', `${registrations.length}`, `${credits} credit hours`, 'burgundy')}${kpi('calendar', 'Available courses', `${available}`, 'Open for registration', '')}${kpi('chart', 'Academic status', 'Good', 'In active standing', 'green')}${kpi('wallet', 'Fee balance', 'KES 18,400', 'Illustrative · due 31 Oct', 'amber')}</div><div class="dashboard-grid"><div class="stack">${courseMomentum()}${scheduleCard()}</div><div class="stack">${noticeCard()}${quickActions()}<div class="balance-card"><div class="balance-label"><span class="eyebrow">Student account</span>${icon('wallet')}</div><div class="balance-amount">KES 18,400</div><p>Illustrative balance only. No live payment is connected.</p><button data-nav="fees">View fee summary ${icon('arrow')}</button></div></div></div>`;
 }
+
+function courseMomentum() {
+  const courses = state.data.registrations || [];
+  return `<div class="card"><div class="card-header"><div><h3>Registered courses</h3><p>Manage your current semester units.</p></div><button class="section-link" data-nav="registration">Registration ${icon('arrow')}</button></div><div class="course-list">${courses.length ? courses.map((course, index) => `<article class="course-item ${state.expandedCourses.has(index) ? 'expanded' : ''}"><div class="course-main"><div class="course-name"><span class="course-code">${escapeHtml(course.code.split(' ')[1] || course.code.slice(0, 3))}</span><div class="course-copy"><strong>${escapeHtml(course.title)}</strong><span>${escapeHtml(course.code)} · ${escapeHtml(course.lecturer)}</span></div></div><div class="course-status">${number(course.credits)} credits</div><button class="course-toggle" data-course-toggle="${index}" aria-label="Expand course">${icon('chevron')}</button></div><div class="course-detail"><strong>Registered ${formatDate(course.registered_at)}</strong><br />Use Course Registration to add or withdraw units before the registration deadline.</div></article>`).join('') : `<div class="empty-inline">You have no registered courses yet. Open Course Registration to get started.</div>`}</div></div>`;
+}
+
+function scheduleCard() {
+  const upcoming = [
+    ['08:00', 'Database Systems', 'Science Block 104 · Mr. Brian Mwangi', 'MON'],
+    ['10:00', 'Systems Analysis & Design', 'Main Campus 203 · Dr. Faith Muthoni', 'TUE'],
+    ['14:00', 'Management Information Systems', 'ICT Lab 2 · Dr. Wanjiku Njoroge', 'WED']
+  ];
+  return `<div class="card"><div class="card-header"><div><h3>Upcoming classes</h3><p>Your next sessions, in campus time.</p></div><button class="section-link" data-nav="timetable">Full timetable ${icon('arrow')}</button></div><div class="schedule-list">${upcoming.map(item => `<div class="schedule-item"><div class="schedule-time">${item[0]}<br />${item[0] === '14:00' ? 'PM' : 'AM'}</div><div class="schedule-copy"><strong>${item[1]}</strong><span>${item[2]}</span></div><span class="schedule-day">${item[3]}</span></div>`).join('')}</div></div>`;
+}
+
+function noticeCard() { return `<div class="card"><div class="card-header"><div><h3>Recent notices</h3><p>Small updates worth keeping close.</p></div><button class="section-link" data-action="notifications">View all ${icon('arrow')}</button></div><div class="notice-list"><div class="notice"><span class="notice-marker"></span><div><strong>Mid-semester assessment window</strong><p>Continuous assessment submissions close Friday, 18 October at 5:00 PM.</p><time>Today · Academic Registry</time></div></div><div class="notice"><span class="notice-marker"></span><div><strong>Library weekend hours extended</strong><p>The main library remains open until 8:00 PM during assessment period.</p><time>Yesterday · University Library</time></div></div><div class="notice"><span class="notice-marker"></span><div><strong>Student wellness drop-in clinic</strong><p>Book a confidential session through Student Affairs.</p><time>03 Oct · Student Affairs</time></div></div></div></div>`; }
+function quickActions() { return `<div class="card"><div class="card-header"><div><h3>Quick actions</h3><p>Useful shortcuts for today.</p></div></div><div class="action-grid"><button class="action-button" data-nav="registration">${icon('book')}<strong>Register a course</strong><span>Manage your units</span></button><button class="action-button" data-nav="timetable">${icon('calendar')}<strong>View timetable</strong><span>Plan your week</span></button><button class="action-button" data-action="statement">${icon('file')}<strong>Download statement</strong><span>Keep a copy</span></button><button class="action-button" data-nav="support">${icon('headset')}<strong>Ask for support</strong><span>Get unstuck</span></button></div></div>`; }
 
 function registrationView() {
-  const courses = state.data?.courses || [];
-  const regs = state.data?.registrations || [];
-  const results = state.data?.results || {};
-  const completedCodes = new Set((results.completedCodes || []).map(c => String(c).toUpperCase()));
-  const completedUnits = results.completedUnits || [];
-  const mine = courses.filter(c => c.registered);
-  // Only programme units; exclude already completed so they cannot be selected again
-  const available = courses.filter(c =>
-    c.for_programme !== false &&
-    !c.registered &&
-    !completedCodes.has(String(c.code || '').toUpperCase())
-  );
-  const filter = (state.unitFilter || '').trim().toLowerCase();
-  const filtered = filter
-    ? available.filter(c => `${c.code} ${c.title} ${c.lecturer} ${c.semester}`.toLowerCase().includes(filter))
-    : available;
-  const selectedCredits = [...state.selectedUnits].reduce((sum, id) => {
-    const c = courses.find(x => x.id === id);
-    return sum + Number(c?.credits || 0);
-  }, 0);
-  const myCredits = mine.reduce((s, c) => s + Number(c.credits || 0), 0);
-  const completedCount = results.summary?.totalUnits || completedUnits.length || completedCodes.size;
-  const unitsRequired = results.summary?.unitsRequired || (String(state.data?.student?.programme || '').toLowerCase().includes('diploma') ? 45 : 52);
-  const unitsRemaining = results.summary?.unitsRemaining ?? Math.max(0, unitsRequired - completedCount);
-
-  return `<section class="page-header"><div><span class="eyebrow">Registration</span><h1>Course & unit selection — Trimester 3, 2026</h1><p>Units you have already completed (${completedCount} of ${unitsRequired}) are excluded from the catalogue so they cannot be selected twice. ${unitsRemaining} units remaining to finish. Select new units, review your basket, then register.</p></div></section>
-
-  <div class="stat-grid">
-    <article class="stat-card"><span class="stat-label">Registered units</span><strong>${mine.length}</strong><span class="stat-meta">${myCredits} credits</span></article>
-    <article class="stat-card"><span class="stat-label">In basket</span><strong>${state.selectedUnits.size}</strong><span class="stat-meta">${selectedCredits} credits pending</span></article>
-    <article class="stat-card"><span class="stat-label">Available units</span><strong>${available.length}</strong></article>
-    <article class="stat-card"><span class="stat-label">Completed units</span><strong>${completedCount}</strong><span class="stat-meta">of ${unitsRequired} · ${unitsRemaining} left</span></article>
-  </div>
-
-  <div class="selection-layout">
-    <div class="panel">
-      <div class="panel-header">
-        <h2>Unit catalogue</h2>
-        <input class="filter-input" type="search" placeholder="Search code, title, lecturer…" value="${escapeHtml(state.unitFilter || '')}" data-unit-filter />
-      </div>
-      <p class="panel-note">Tick units to add them to your selection basket, then click <strong>Register selected units</strong>. Completed units are hidden here.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th></th><th>Code</th><th>Unit / course title</th><th>Credits</th><th>Lecturer</th><th>Trimester</th><th>Seats</th></tr></thead>
-          <tbody>
-            ${filtered.length ? filtered.map(c => {
-              const checked = state.selectedUnits.has(c.id);
-              const full = c.seats_remaining <= 0;
-              return `<tr class="${checked ? 'row-selected' : ''}">
-                <td><input type="checkbox" data-toggle-unit="${c.id}" ${checked ? 'checked' : ''} ${full ? 'disabled' : ''} /></td>
-                <td><strong>${escapeHtml(c.code)}</strong></td>
-                <td>${escapeHtml(c.title)}</td>
-                <td>${c.credits}</td>
-                <td>${escapeHtml(c.lecturer)}</td>
-                <td>${escapeHtml(c.semester)}</td>
-                <td><span class="badge ${full ? 'warning' : 'success'}">${full ? 'Full' : c.seats_remaining}</span></td>
-              </tr>`;
-            }).join('') : '<tr><td colspan="7" class="empty-copy">No matching units available. Completed units are excluded; clear the search or ask admin to add new courses.</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-      <div class="selection-actions">
-        <button type="button" class="secondary-button" data-action="clear-basket" ${state.selectedUnits.size ? '' : 'disabled'}>Clear basket</button>
-        <button type="button" class="primary-button" data-action="register-basket" ${state.selectedUnits.size ? '' : 'disabled'}>Register selected units (${state.selectedUnits.size})</button>
-      </div>
-    </div>
-
-    <div class="selection-side">
-      <div class="panel">
-        <div class="panel-header"><h2>Selection basket</h2></div>
-        ${state.selectedUnits.size ? `<ul class="basket-list">${[...state.selectedUnits].map(id => {
-          const c = courses.find(x => x.id === id);
-          if (!c) return '';
-          return `<li><div><strong>${escapeHtml(c.code)}</strong><span>${escapeHtml(c.title)}</span></div><button type="button" class="text-button" data-toggle-unit="${c.id}">Remove</button></li>`;
-        }).join('')}</ul>
-        <p class="panel-note"><strong>${selectedCredits}</strong> credits selected</p>` : '<p class="empty-copy">No units in basket yet. Tick units from the catalogue.</p>'}
-      </div>
-
-      <div class="panel">
-        <div class="panel-header"><h2>My registered units</h2></div>
-        ${mine.length ? `<div class="table-wrap"><table><thead><tr><th>Code</th><th>Title</th><th>Cr</th><th></th></tr></thead>
-        <tbody>${mine.map(c => `<tr>
-          <td>${escapeHtml(c.code)}</td>
-          <td>${escapeHtml(c.title)}</td>
-          <td>${c.credits}</td>
-          <td><button type="button" class="text-button danger-text" data-withdraw="${c.id}">Withdraw</button></td>
-        </tr>`).join('')}</tbody></table></div>` : '<p class="empty-copy">You have not registered any units this trimester.</p>'}
-      </div>
-
-      <div class="panel">
-        <div class="panel-header"><h2>Completed units (${completedCount} of ${unitsRequired})</h2></div>
-        <p class="panel-note">These units appear on your provisional results and cannot be selected again. Programme requires ${unitsRequired} units to finish (${unitsRemaining} remaining).</p>
-        ${completedUnits.length ? `<div class="table-wrap"><table><thead><tr><th>Code</th><th>Title</th><th>Cr</th></tr></thead>
-        <tbody>${completedUnits.slice(0, 40).map(u => `<tr>
-          <td><strong>${escapeHtml(u.code)}</strong></td>
-          <td>${escapeHtml(u.title)}</td>
-          <td>${u.credits || 3}</td>
-        </tr>`).join('')}${completedUnits.length > 40 ? `<tr><td colspan="3" class="empty-copy">… and ${completedUnits.length - 40} more (see Results)</td></tr>` : ''}</tbody></table></div>` : '<p class="empty-copy">No completed units on record yet.</p>'}
-      </div>
-    </div>
-  </div>`;
-}
-
-
-function feesView() {
-  const fees = state.data?.fees;
-  const student = state.data?.student || {};
-  if (!fees) return genericPage('fees');
-  const outstanding = (fees.items || []).filter(i => !i.paid && (i.balance || 0) > 0);
-  const rate = fees.summary?.tuitionPerUnit || 0;
-  const curUnits = fees.summary?.currentUnits || 0;
-  return `<section class="page-header"><div><span class="eyebrow">Fee statement</span><h1>Fees charged by units selected</h1><p>${escapeHtml(student.full_name || '')} · ${escapeHtml(student.student_number || '')}</p></div></section>
-  <div class="stat-grid">
-    <article class="stat-card"><span class="stat-label">Total billed</span><strong>KES ${formatMoney(fees.summary?.totalBilled)}</strong></article>
-    <article class="stat-card"><span class="stat-label">Total paid</span><strong>KES ${formatMoney(fees.summary?.totalPaid)}</strong></article>
-    <article class="stat-card"><span class="stat-label">Outstanding</span><strong>KES ${formatMoney(fees.summary?.balance)}</strong></article>
-    <article class="stat-card"><span class="stat-label">Current term units</span><strong>${curUnits}</strong><span class="stat-meta">@ KES ${formatMoney(rate)}/unit</span></article>
-  </div>
-  <p class="panel-note">${escapeHtml(fees.periodNote || '')} Register more units under Course Registration to update this term’s bill.</p>
-
-  ${outstanding.length ? `<div class="panel"><div class="panel-header"><h2>Pay fees (full or partial)</h2></div>
-  <p class="panel-note">Enter any amount up to the outstanding balance for the selected trimester. Leave amount blank to pay the full remaining balance. This is a demonstration payment record (no real gateway).</p>
-  <form id="fee-pay-form" class="form-grid">
-    <label class="field"><span>Trimester</span>
-      <select name="term_key" required data-term-select>
-        ${outstanding.map(i => `<option value="${escapeHtml(i.key)}" data-balance="${i.balance}" data-total="${i.total}">${escapeHtml(i.semester)} — Outstanding KES ${formatMoney(i.balance)} (of ${formatMoney(i.total)})</option>`).join('')}
-      </select>
-    </label>
-    <label class="field"><span>Amount to pay (KES)</span>
-      <input name="amount" type="number" min="1" step="1" placeholder="Full balance if left blank" data-amount-input />
-    </label>
-    <label class="field"><span>Payment method</span>
-      <select name="method" required>
-        <option value="M-Pesa">M-Pesa</option>
-        <option value="Bank transfer">Bank transfer</option>
-        <option value="Card">Card</option>
-        <option value="Cash">Cash (registry)</option>
-      </select>
-    </label>
-    <button type="submit" class="primary-button">Record payment</button>
-  </form>
-  <p class="panel-note" data-pay-hint>Tip: type a smaller amount for a partial payment (e.g. 10000). The remaining balance stays outstanding until fully cleared.</p>
-  </div>` : `<div class="panel"><p class="empty-copy">No outstanding balance. All listed trimesters are cleared.</p></div>`}
-
-  <div class="panel"><div class="panel-header"><h2>Trimester breakdown (units × rate + fixed charges)</h2></div>
-  <div class="table-wrap"><table><thead><tr><th>Trimester</th><th>Units</th><th>Tuition</th><th>Fixed charges</th><th>Total billed</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
-  <tbody>${(fees.items || []).map(item => {
-    const bal = item.balance ?? (item.paid ? 0 : item.total);
-    const paidAmt = item.amount_paid ?? (item.paid ? item.total : 0);
-    const fixed = (item.registration || 0) + (item.library || 0) + (item.medical || 0) + (item.activity || 0) + (item.examination || 0);
-    const badge = item.paid ? 'success' : (paidAmt > 0 ? 'warning' : 'warning');
-    return `<tr class="${item.paid ? '' : 'row-outstanding'}">
-      <td>${escapeHtml(item.semester)}</td>
-      <td><strong>${item.units ?? '—'}</strong></td>
-      <td>${formatMoney(item.tuition)} <span class="stat-meta">(${item.units || 0} × ${formatMoney(item.tuition_per_unit || 0)})</span></td>
-      <td>${formatMoney(fixed)}</td>
-      <td>${formatMoney(item.total)}</td>
-      <td>${formatMoney(paidAmt)}</td>
-      <td><strong>${formatMoney(bal)}</strong></td>
-      <td><span class="badge ${badge}">${escapeHtml(item.status)}</span></td>
-    </tr>`;
-  }).join('')}</tbody></table></div>
-  </div>`;
-}
-
-function resultsView() {
-  const results = state.data?.results;
-  const student = state.data?.student || {};
-  if (!results) return genericPage('results');
-  const req = results.summary?.unitsRequired || 52;
-  const done = results.summary?.totalUnits || 0;
-  const left = results.summary?.unitsRemaining ?? Math.max(0, req - done);
-  const gradMin = results.summary?.minGraduationUnits || 32;
-  const eligible = results.summary?.eligibleToGraduate || done >= req;
-  return `<section class="page-header"><div><span class="eyebrow">Academic results</span><h1>Provisional results</h1><p>${escapeHtml(student.full_name || '')} · ${escapeHtml(student.student_number || '')} · CGPA ${results.summary?.cgpa ?? '—'}</p></div>
-  <button type="button" class="primary-button" data-action="download-results">Download results ${icon('file')}</button></section>
-  <div class="stat-grid">
-    <article class="stat-card"><span class="stat-label">Cumulative GPA</span><strong>${results.summary?.cgpa ?? '—'}</strong></article>
-    <article class="stat-card"><span class="stat-label">Credits earned</span><strong>${results.summary?.totalCredits || 0}</strong></article>
-    <article class="stat-card"><span class="stat-label">Units completed</span><strong>${done}</strong><span class="stat-meta">of ${req} required</span></article>
-    <article class="stat-card"><span class="stat-label">Units remaining</span><strong>${left}</strong><span class="stat-meta">${results.summary?.programmeType || 'programme'} target ${req}</span></article>
-    <article class="stat-card"><span class="stat-label">Graduation</span><strong>${eligible ? 'Eligible' : 'In progress'}</strong><span class="stat-meta">min ${gradMin} · target ${req}</span></article>
-  </div>
-  <p class="panel-note">${escapeHtml(results.note || '')}</p>
-  ${(results.semesters || []).map(sem => {
-    const units = (sem.units || []).slice(0, 6); // hard cap 6 on slip
-    return `<div class="panel"><div class="panel-header"><h2>${escapeHtml(sem.semester)}</h2><span class="badge">GPA ${sem.gpa} · ${units.length} units</span></div>
-  <div class="table-wrap"><table><thead><tr><th>Code</th><th>Unit</th><th>Credits</th><th>Grade</th><th>Points</th></tr></thead>
-  <tbody>${units.map(u => `<tr><td>${escapeHtml(u.code)}</td><td>${escapeHtml(u.title)}</td><td>${u.credits}</td><td><strong>${escapeHtml(u.grade)}</strong></td><td>${u.points}</td></tr>`).join('')}</tbody></table></div></div>`;
-  }).join('') || '<p class="empty-copy">No completed trimesters yet for result display.</p>'}`;
-}
-
-function genericPage(section) {
-  const copy = {
-    timetable: ['Timetable', 'Your personalised class schedule for Trimester 3, 2026 will appear here once units are confirmed by the faculty office.'],
-    library: ['Library', 'Search the KeMU digital catalogue, renew loans, and track reading list holds from this space.'],
-    support: ['Student support', 'Contact the Student Help Desk for ID card issues, fee queries, or academic guidance. Email studentsupport@kemu.ac.ke or visit the Main Campus registry.']
-  }[section] || ['Workspace', 'This section is ready for the next portal release.'];
-  return `<section class="page-header"><div><span class="eyebrow">${escapeHtml(copy[0])}</span><h1>${escapeHtml(copy[0])}</h1><p>${escapeHtml(copy[1])}</p></div></section><div class="panel"><p class="empty-copy">${escapeHtml(copy[1])}</p></div>`;
+  const courses = state.data.courses || [];
+  const registered = courses.filter(course => course.registered);
+  return `${pageHeading('Course Registration', 'Register or withdraw from available units for this semester.', `${registered.length} registered`)}<div class="registration-banner"><div class="registration-banner-icon">${icon('info')}</div><div><strong>Registration is live for Semester 1, 2026/2027.</strong><p>Choose a course below. Your record updates immediately after a successful registration.</p></div></div><div class="page-card"><div class="filter-row"><div><h2>Available courses</h2><p class="card-header" style="padding:6px 0 0;color:var(--muted);font-size:11px">${courses.length} course options from the current catalogue.</p></div><button class="section-link" data-action="refresh">Refresh list ${icon('refresh')}</button></div><div class="registration-grid">${courses.map(course => `<article class="registration-card ${course.registered ? 'registered' : ''}"><div class="registration-card-top"><span class="course-code">${escapeHtml(course.code.split(' ')[1] || course.code.slice(0, 3))}</span><span class="tag ${course.registered ? 'green-tag' : ''}">${course.registered ? 'Registered' : `${course.seats_remaining} seats left`}</span></div><strong>${escapeHtml(course.title)}</strong><p>${escapeHtml(course.code)} · ${escapeHtml(course.lecturer)}</p><div class="registration-meta"><span>${number(course.credits)} credits</span><span>${number(course.enrolled_count)} / ${number(course.capacity)} enrolled</span></div>${course.registered ? `<button class="danger-button" data-withdraw="${course.id}">Withdraw ${icon('arrow')}</button>` : `<button class="primary-small" data-register="${course.id}" ${course.seats_remaining <= 0 ? 'disabled' : ''}>Register course ${icon('arrow')}</button>`}</article>`).join('')}</div></div><div class="page-card"><div class="filter-row"><div><h2>Your current registration</h2><p class="card-header" style="padding:6px 0 0;color:var(--muted);font-size:11px">This is the record attached to your account.</p></div></div>${registered.length ? `<div class="table-wrap"><table><thead><tr><th>Course</th><th>Lecturer</th><th>Credits</th><th>Registered</th></tr></thead><tbody>${registered.map(course => `<tr><td>${escapeHtml(course.code)} · ${escapeHtml(course.title)}</td><td>${escapeHtml(course.lecturer)}</td><td>${number(course.credits)}</td><td><span class="status-pill">Active</span></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-state"><div class="empty-icon">${icon('book')}</div><h2>No courses registered</h2><p>Choose from the available course cards above to build your semester schedule.</p></div>`}</div>`;
 }
 
 function adminOverview() {
-  const summary = state.data?.summary || {};
-  return `<section class="page-header"><div><span class="eyebrow">Administrator</span><h1>Portal overview</h1><p>Manage student records, courses, and registrations.</p></div></section>
-  <div class="stat-grid">
-    <article class="stat-card"><span class="stat-label">Students</span><strong>${summary.students || 0}</strong></article>
-    <article class="stat-card"><span class="stat-label">Courses</span><strong>${summary.courses || 0}</strong></article>
-    <article class="stat-card"><span class="stat-label">Active registrations</span><strong>${summary.registrations || 0}</strong></article>
-  </div>
-  <div class="panel"><div class="panel-header"><h2>Change admin password</h2></div>
-  <form id="admin-password-form" class="form-grid">
-    <label class="field"><span>Current password</span><input name="current_password" type="password" required autocomplete="current-password" /></label>
-    <label class="field"><span>New password</span><input name="new_password" type="password" required minlength="4" autocomplete="new-password" /></label>
-    <button type="submit" class="primary-button">Update password</button>
-  </form>
-  <p class="panel-note">Default admin login is username <strong>admin</strong> / password <strong>123456</strong> until you change it.</p>
-  </div>
-  <div class="panel"><div class="panel-header"><h2>Fee balance clearance</h2></div>
-  <p class="panel-note">Clear outstanding trimester fees for a student (admin override). Leaves a clearance record on their statement.</p>
-  <form id="admin-fee-clear-form" class="form-grid">
-    <label class="field"><span>Student</span>
-      <select name="student_id" required>
-        <option value="">Select student…</option>
-        ${(state.data?.students || []).map(s => `<option value="${s.id}">${escapeHtml(s.student_number)} — ${escapeHtml(s.full_name)}</option>`).join('')}
-      </select>
-    </label>
-    <label class="field"><span>Scope</span>
-      <select name="scope">
-        <option value="all">All outstanding trimesters</option>
-        <option value="current">Current trimester only (T3-2026)</option>
-      </select>
-    </label>
-    <label class="field"><span>Clearance method note</span>
-      <select name="method">
-        <option value="Admin clearance">Admin clearance</option>
-        <option value="Bank transfer">Bank transfer verified</option>
-        <option value="M-Pesa">M-Pesa verified</option>
-        <option value="Scholarship">Scholarship / waiver</option>
-      </select>
-    </label>
-    <button type="submit" class="primary-button">Clear fee balance</button>
-  </form></div>`;
+  const summary = state.data.summary || {};
+  return `${pageHeading('Admin Overview', 'Manage the people, courses, and registrations behind the portal.', '● Admin access')}<div class="admin-hero"><div><span class="eyebrow">KeMU portal operations</span><h2>Keep the student record moving.</h2><p>You are signed in as the configured administrator. Add a student first, then add or assign their courses from the management workspace.</p></div><div class="admin-hero-mark">${icon('grid')}</div></div><div class="kpi-row">${kpi('user', 'Students', summary.students || 0, 'Student records', 'burgundy')}${kpi('book', 'Courses', summary.courses || 0, 'Catalogue entries', '')}${kpi('calendar', 'Registrations', summary.registrations || 0, 'Active assignments', 'green')}${kpi('info', 'Access', 'Admin', 'Role protected', 'amber')}</div><div class="admin-grid"><div class="page-card"><div class="card-header" style="padding:0 0 18px"><div><h3>How to use admin mode</h3><p>Three steps to get a student ready.</p></div></div><div class="admin-steps"><div><span>01</span><strong>Add a student</strong><p>Enter the student’s name, Manus email, programme, year, and campus.</p></div><div><span>02</span><strong>Add a course</strong><p>Set the code, title, lecturer, credits, semester, and capacity.</p></div><div><span>03</span><strong>Assign a course</strong><p>Use Registrations to register a course on behalf of a student.</p></div></div></div><div class="page-card admin-note"><div class="resource-icon">${icon('warning')}</div><strong>Keep emails accurate</strong><p>A student’s Manus account email is how the portal links their login to their student record.</p><button data-nav="students">Manage students ${icon('arrow')}</button></div></div>`;
 }
 
 function studentsView() {
-  const students = state.data?.students || [];
-  const editing = state.editingStudentId;
-  const editStudent = editing ? students.find(s => s.id === editing) : null;
-  return `<section class="page-header"><div><span class="eyebrow">Students</span><h1>Student management</h1><p>Add, edit, reset passwords, or remove student accounts.</p></div></section>
-  <div class="panel"><div class="panel-header"><h2>${editStudent ? 'Edit student' : 'Add student'}</h2>${editStudent ? `<button type="button" class="text-button" data-action="cancel-edit">Cancel edit</button>` : ''}</div>
-  <form id="student-form" class="form-grid" data-mode="${editStudent ? 'edit' : 'create'}" data-student-id="${editStudent ? editStudent.id : ''}">
-    <label class="field"><span>Full name</span><input name="full_name" required value="${editStudent ? escapeHtml(editStudent.full_name) : ''}" /></label>
-    <label class="field"><span>Registration number</span><input name="student_number" required placeholder="CIS-1-3170-3/2024" value="${editStudent ? escapeHtml(editStudent.student_number) : ''}" /></label>
-    <label class="field"><span>Email</span><input name="email" type="email" required value="${editStudent ? escapeHtml(editStudent.email) : ''}" /></label>
-    <label class="field"><span>Programme</span><input name="programme" required value="${editStudent ? escapeHtml(editStudent.programme) : ''}" /></label>
-    <label class="field"><span>Year level</span><input name="year_level" type="number" min="1" max="6" value="${editStudent ? editStudent.year_level : 1}" /></label>
-    <label class="field"><span>Date of birth</span><input name="date_of_birth" type="date" value="${editStudent?.date_of_birth ? String(editStudent.date_of_birth).slice(0, 10) : ''}" /></label>
-    <label class="field"><span>Age</span><input name="age" type="number" min="1" max="100" placeholder="e.g. 21" value="${editStudent && editStudent.age != null ? editStudent.age : ''}" /></label>
-    <label class="field"><span>Campus</span><input name="campus" value="${editStudent ? escapeHtml(editStudent.campus || 'Main Campus') : 'Main Campus'}" /></label>
-    ${editStudent ? '' : `<label class="field"><span>Password</span><input name="password" value="123456" /></label>`}
-    <label class="field"><span>Issue date</span><input name="issue_date" type="date" value="${editStudent?.issue_date ? String(editStudent.issue_date).slice(0, 10) : ''}" /></label>
-    <label class="field"><span>Expiry date</span><input name="expiry_date" type="date" value="${editStudent?.expiry_date ? String(editStudent.expiry_date).slice(0, 10) : ''}" /></label>
-    <button type="submit" class="primary-button">${editStudent ? 'Save changes' : 'Add student'}</button>
-  </form></div>
-  <div class="panel"><div class="panel-header"><h2>All students (${students.length})</h2></div>
-  <div class="table-wrap"><table><thead><tr><th>Reg. No</th><th>Name</th><th>Programme</th><th>Year</th><th>DOB</th><th>Age</th><th>Issue</th><th>Expiry</th><th>Actions</th></tr></thead>
-  <tbody>${students.map(s => `<tr>
-    <td>${escapeHtml(s.student_number)}</td>
-    <td>${escapeHtml(s.full_name)}</td>
-    <td>${escapeHtml(s.programme)}</td>
-    <td>${s.year_level}</td>
-    <td>${formatDate(s.date_of_birth)}</td>
-    <td>${s.age != null ? s.age : '—'}</td>
-    <td>${formatDate(s.issue_date)}</td>
-    <td>${formatDate(s.expiry_date)}</td>
-    <td class="action-cell">
-      <button type="button" class="text-button" data-edit-student="${s.id}">Edit</button>
-      <button type="button" class="text-button" data-reset-password="${s.id}" data-reg="${escapeHtml(s.student_number)}">Reset pwd</button>
-      <button type="button" class="text-button danger-text" data-delete-student="${s.id}" data-name="${escapeHtml(s.full_name)}">Delete</button>
-    </td>
-  </tr>`).join('')}</tbody></table></div></div>`;
+  return `${pageHeading('Students', 'Add and review the student records that can access the portal.', `${state.data.students.length} records`)}<div class="admin-grid"><form class="page-card form-card" id="student-form"><div class="form-heading"><div><h2>Add a student</h2><p>Use the student’s Manus account email for login matching.</p></div><span class="form-icon">${icon('user')}</span></div><div class="form-grid"><label>Full name<input name="full_name" required placeholder="e.g. Amara Njeri" /></label><label>Manus account email<input name="email" type="email" required placeholder="student@example.com" /></label><label>Student number<input name="student_number" placeholder="e.g. KEMU/IS/2026/0102" /></label><label>Programme<input name="programme" required placeholder="e.g. BSc. Information Science" /></label><label>Year<select name="year_level"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label><label>Campus<input name="campus" value="Main Campus" required /></label></div><button class="primary-button form-submit" type="submit">Add student ${icon('plus')}</button></form><div class="page-card"><div class="filter-row"><div><h2>Student directory</h2><p class="card-header" style="padding:6px 0 0;color:var(--muted);font-size:11px">These are the records currently available for account matching.</p></div></div><div class="table-wrap"><table><thead><tr><th>Student</th><th>Number</th><th>Programme</th><th>Year</th></tr></thead><tbody>${state.data.students.map(student => `<tr><td><strong>${escapeHtml(student.full_name)}</strong><small>${escapeHtml(student.email)}</small></td><td>${escapeHtml(student.student_number)}</td><td>${escapeHtml(student.programme)}</td><td>Year ${number(student.year_level)}</td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 
 function coursesView() {
-  const courses = state.data?.courses || [];
-  const programmes = state.data?.programmes || [];
-  const curriculum = state.data?.curriculum || {};
-  const selected = state.selectedProgramme || programmes[0] || '';
-  if (!state.selectedProgramme && programmes[0]) state.selectedProgramme = programmes[0];
-  const prog = state.selectedProgramme || selected;
-  const filter = (state.unitAdminFilter || '').trim().toLowerCase();
-
-  // Build set of curriculum codes for selected programme (shared catalogue uses programme=null)
-  const progCodeSet = new Set();
-  const progRowsByTerm = { 1: [], 2: [], 3: [] };
-  if (prog && curriculum[prog]) {
-    for (const t of ['1', '2', '3']) {
-      for (const row of (curriculum[prog][t] || [])) {
-        const code = String(row[0] || '').trim();
-        if (!code) continue;
-        progCodeSet.add(code.toUpperCase());
-        progRowsByTerm[Number(t)].push(row);
-      }
-    }
-  }
-
-  const byProg = courses.filter(c => {
-    if (!prog) return true;
-    if (!progCodeSet.size) return true;
-    return progCodeSet.has(String(c.code || '').toUpperCase());
-  });
-
-  const trimesterGroups = [1, 2, 3].map(t => {
-    const planned = progRowsByTerm[t] || [];
-    const plannedCodes = planned.map(r => String(r[0] || '').toUpperCase());
-    // Prefer DB course when code exists; otherwise show planned curriculum row
-    let units = [];
-    const used = new Set();
-    for (const row of planned) {
-      const key = String(row[0] || '').toUpperCase();
-      if (!key || used.has(key)) continue;
-      used.add(key);
-      const dbc = courses.find(c => String(c.code || '').toUpperCase() === key);
-      if (dbc) {
-        units.push({ ...dbc, trimester: t, semester: `Trimester ${t}`, programme: prog });
-      } else {
-        units.push({ id: null, code: row[0], title: row[1], credits: row[2] || 3, lecturer: '—', capacity: 60, enrolled_count: 0, seats_remaining: 60, semester: `Trimester ${t}`, trimester: t, programme: prog, planned: true });
-      }
-    }
-    // Also include any DB units tagged for this trimester that match programme codes
-    for (const c of byProg) {
-      const key = String(c.code || '').toUpperCase();
-      if (used.has(key)) continue;
-      if (Number(c.trimester) === t || String(c.semester || '').includes(`Trimester ${t}`)) {
-        used.add(key);
-        units.push({ ...c, trimester: t, semester: c.semester || `Trimester ${t}`, programme: prog });
-      }
-    }
-    if (filter) units = units.filter(c => `${c.code} ${c.title} ${c.lecturer}`.toLowerCase().includes(filter));
-    units.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
-    return { t, units };
-  });
-
-  const editing = state.editingCourseId;
-  const editCourse = editing ? courses.find(c => c.id === editing) : null;
-  const totalUnits = progCodeSet.size || byProg.length;
-
-  return `<section class="page-header"><div><span class="eyebrow">Administration</span><h1>Unit management</h1><p>Select a programme (course), then manage its units by Trimester 1, 2 and 3.</p></div></section>
-
-  <div class="panel"><div class="panel-header"><h2>Select programme / course</h2></div>
-  <label class="field"><span>Programme</span>
-    <select data-select-programme>
-      ${programmes.map(p => `<option value="${escapeHtml(p)}" ${p === prog ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
-    </select>
-  </label>
-  <p class="panel-note">${programmes.length} programmes loaded · ${totalUnits} units stored for selected programme</p>
-  </div>
-
-  <div class="panel"><div class="panel-header"><h2>${editCourse ? 'Edit unit' : 'Add new unit to selected programme'}</h2>${editCourse ? `<button type="button" class="text-button" data-action="cancel-edit-course">Cancel edit</button>` : ''}</div>
-  <form id="course-form" class="form-grid" data-mode="${editCourse ? 'edit' : 'create'}" data-course-id="${editCourse ? editCourse.id : ''}">
-    <input type="hidden" name="programme" value="${escapeHtml(prog)}" />
-    <label class="field"><span>Unit code</span><input name="code" required value="${editCourse ? escapeHtml(editCourse.code) : ''}" placeholder="e.g. CISY 221" /></label>
-    <label class="field"><span>Unit title</span><input name="title" required value="${editCourse ? escapeHtml(editCourse.title) : ''}" /></label>
-    <label class="field"><span>Lecturer</span>
-      <input name="lecturer" list="lecturer-list" required value="${editCourse ? escapeHtml(editCourse.lecturer) : ''}" placeholder="Select or type lecturer name" />
-      <datalist id="lecturer-list">${(state.data?.lecturers || []).map(n => `<option value="${escapeHtml(n)}"></option>`).join('')}</datalist>
-    </label>
-    <label class="field"><span>Credits</span><input name="credits" type="number" min="1" max="12" value="${editCourse ? editCourse.credits : 3}" /></label>
-    <label class="field"><span>Capacity</span><input name="capacity" type="number" min="1" value="${editCourse ? editCourse.capacity : 60}" /></label>
-    <label class="field"><span>Trimester</span>
-      <select name="trimester" required>
-        ${[1,2,3].map(t => `<option value="${t}" ${(editCourse ? Number(editCourse.trimester || 3) : 1) === t ? 'selected' : ''}>Trimester ${t}</option>`).join('')}
-      </select>
-    </label>
-    <button type="submit" class="primary-button">${editCourse ? 'Save unit changes' : 'Add unit to programme'}</button>
-  </form>
-  <p class="panel-note">New units are saved under <strong>${escapeHtml(prog)}</strong> and appear in the Trimester 1 / 2 / 3 tables below. Students on this programme will see them in unit selection.</p>
-  </div>
-
-  <div class="panel"><div class="panel-header"><h2>Filter units</h2>
-  <input class="filter-input" type="search" placeholder="Filter by code, title, lecturer…" value="${escapeHtml(state.unitAdminFilter || '')}" data-unit-admin-filter />
-  </div></div>
-
-  ${trimesterGroups.map(({ t, units }) => `
-  <div class="panel"><div class="panel-header"><h2>Trimester ${t}</h2><span class="badge">${units.length} units</span></div>
-  <div class="table-wrap"><table><thead><tr><th>Code</th><th>Title</th><th>Lecturer</th><th>Cr</th><th>Enrolled</th><th>Seats</th><th>Actions</th></tr></thead>
-  <tbody>${units.length ? units.map(c => `<tr class="${c.planned ? 'row-planned' : ''}">
-    <td><strong>${escapeHtml(c.code)}</strong></td>
-    <td>${escapeHtml(c.title)}</td>
-    <td>${escapeHtml(c.lecturer)}</td>
-    <td>${c.credits}</td>
-    <td>${c.enrolled_count || 0}</td>
-    <td>${c.planned ? '—' : `<span class="badge ${(c.seats_remaining || 0) <= 0 ? 'warning' : 'success'}">${c.seats_remaining}</span>`}</td>
-    <td class="action-cell">${c.id ? `
-      <button type="button" class="text-button" data-edit-course="${c.id}">Edit</button>
-      <button type="button" class="text-button danger-text" data-delete-course="${c.id}" data-code="${escapeHtml(c.code)}">Delete</button>
-    ` : `<span class="badge">Curriculum</span>`}</td>
-  </tr>`).join('') : '<tr><td colspan="7" class="empty-copy">No units in this trimester.</td></tr>'}</tbody></table></div></div>`).join('')}
-
-  <div class="panel"><div class="panel-header"><h2>Faculty lecturers (${(state.data?.lecturers || []).length})</h2></div>
-  <div class="table-wrap"><table><thead><tr><th>#</th><th>Name</th></tr></thead>
-  <tbody>${(state.data?.lecturers || []).map((n, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(n)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  return `${pageHeading('Courses', 'Build the catalogue students can register from.', `${state.data.courses.length} catalogue entries`)}<div class="admin-grid"><form class="page-card form-card" id="course-form"><div class="form-heading"><div><h2>Add a course</h2><p>Create a catalogue entry and set its registration capacity.</p></div><span class="form-icon">${icon('book')}</span></div><div class="form-grid"><label>Course code<input name="code" required placeholder="e.g. BIS 410" /></label><label>Course title<input name="title" required placeholder="e.g. Information Security" /></label><label>Lecturer<input name="lecturer" required placeholder="e.g. Dr. Jane Wambui" /></label><label>Credits<input name="credits" type="number" min="1" max="8" value="3" required /></label><label>Capacity<input name="capacity" type="number" min="1" value="60" required /></label><label>Semester<input name="semester" value="Semester 1, 2026/2027" required /></label></div><button class="primary-button form-submit" type="submit">Add course ${icon('plus')}</button></form><div class="page-card"><div class="filter-row"><div><h2>Course catalogue</h2><p class="card-header" style="padding:6px 0 0;color:var(--muted);font-size:11px">Course availability updates as students register.</p></div></div><div class="table-wrap"><table><thead><tr><th>Course</th><th>Lecturer</th><th>Credits</th><th>Capacity</th></tr></thead><tbody>${state.data.courses.map(course => `<tr><td><strong>${escapeHtml(course.code)}</strong><small>${escapeHtml(course.title)}</small></td><td>${escapeHtml(course.lecturer)}</td><td>${number(course.credits)}</td><td>${number(course.enrolled_count)} / ${number(course.capacity)}</td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 
 function registrationsView() {
-  const registrations = state.data?.registrations || [];
-  const students = state.data?.students || [];
-  const courses = state.data?.courses || [];
-  const selectedStudentId = state.adminSelectedStudent || '';
-  const adminFilter = (state.adminUnitFilter || '').trim().toLowerCase();
-  let selectable = courses.filter(c => c.id && (c.seats_remaining == null || c.seats_remaining > 0));
-  if (adminFilter) {
-    selectable = selectable.filter(c => `${c.code} ${c.title} ${c.lecturer || ''}`.toLowerCase().includes(adminFilter));
-  }
-  // Exclude units student already registered
-  const already = new Set(
-    registrations.filter(r => r.student_id === selectedStudentId).map(r => r.course_id)
-  );
-  selectable = selectable.filter(c => !already.has(c.id));
-  const basket = state.adminSelectedUnits || new Set();
+  return `${pageHeading('Registrations', 'Assign courses on behalf of students and review active records.', `${state.data.registrations.length} active`)}<div class="page-card form-card"><div class="form-heading"><div><h2>Register a student</h2><p>Use this when a student needs an administrator-assisted registration.</p></div><span class="form-icon">${icon('calendar')}</span></div><form id="assignment-form"><div class="form-grid"><label>Student<select name="student_id" required><option value="">Choose a student</option>${state.data.students.map(student => `<option value="${student.id}">${escapeHtml(student.full_name)} · ${escapeHtml(student.student_number)}</option>`).join('')}</select></label><label>Course<select name="course_id" required><option value="">Choose a course</option>${state.data.courses.filter(course => course.seats_remaining > 0).map(course => `<option value="${course.id}">${escapeHtml(course.code)} · ${escapeHtml(course.title)}</option>`).join('')}</select></label></div><button class="primary-button form-submit" type="submit">Register course for student ${icon('arrow')}</button></form></div><div class="page-card"><div class="filter-row"><div><h2>Active registration records</h2><p class="card-header" style="padding:6px 0 0;color:var(--muted);font-size:11px">Withdrawals here remove the active registration but preserve history.</p></div></div>${state.data.registrations.length ? `<div class="table-wrap"><table><thead><tr><th>Student</th><th>Course</th><th>Registered</th><th>Action</th></tr></thead><tbody>${state.data.registrations.map(registration => `<tr><td><strong>${escapeHtml(registration.student_name)}</strong><small>${escapeHtml(registration.student_number)}</small></td><td><strong>${escapeHtml(registration.code)}</strong><small>${escapeHtml(registration.title)}</small></td><td>${formatDate(registration.registered_at)}</td><td><button class="table-action danger-text" data-admin-withdraw="${registration.id}">Withdraw</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-state"><div class="empty-icon">${icon('calendar')}</div><h2>No active registrations</h2><p>Use the assignment form above after you have added students and courses.</p></div>`}</div>`;
+}
 
-  return `<section class="page-header"><div><span class="eyebrow">Registrations</span><h1>Manage enrolments</h1><p>Select a student, tick units, then register them in bulk.</p></div></section>
+function resultSlipHtml(student, results, title = 'Academic Result Slip') {
+  const rows = results.length ? results.map(result => `<tr><td>${escapeHtml(result.code)}</td><td>${escapeHtml(result.title)}</td><td>${number(result.credits)}</td><td>${result.marks === null ? 'Pending' : result.marks}</td><td>${escapeHtml(result.grade || 'Pending')}</td><td>${result.grade_point === null ? '—' : result.grade_point}</td></tr>`).join('') : `<tr><td colspan=6>No result entries recorded yet.</td></tr>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#241b21}header{text-align:center;border-bottom:2px solid #87124d;padding-bottom:14px;margin-bottom:20px}header img{width:520px;max-width:90%;height:auto}header p{margin:3px 0;font-size:10px}h1{font-size:18px;color:#87124d;text-align:center}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:11px}th,td{border:1px solid #cfc4cb;padding:8px;text-align:left}th{background:#f3e7ed;color:#6d1040}.info{display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:11px}.footer{margin-top:36px;display:flex;justify-content:space-between;font-size:10px}</style></head><body><header><img src="${logoPath}" alt="Kenya Methodist University"><p>P. O. BOX 267 - 60200 Meru - Kenya</p><p>Tel: 254-061-313097, 254-064-3131279, 0724256162</p><p>Email: info@kemu.ac.ke, Website: www.kemu.ac.ke</p></header><h1>${escapeHtml(title)}</h1><div class="info"><div><b>Name:</b> ${escapeHtml(student.full_name)}</div><div><b>Registration No:</b> ${escapeHtml(student.student_number)}</div><div><b>Programme:</b> ${escapeHtml(student.programme)}</div><div><b>Semester:</b> ${escapeHtml(results[0]?.semester || 'Not entered')}</div></div><table><thead><tr><th>Code</th><th>Course</th><th>Credits</th><th>Marks</th><th>Grade</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><span>Generated from KeMU Student Portal</span><span>Official results must be verified by Academic Registry</span></div><script>window.onload=()=>window.print()</script></body></html>`;
+}
+function openResultSlip(student, results) { const popup = window.open('', '_blank'); if (!popup) { showToast('Allow pop-ups to download the result slip.', 'error'); return; } popup.document.write(resultSlipHtml(student, results)); popup.document.close(); }
+function resultEntryView() {
+  const students = state.data.students || [], courses = state.data.courses || [];
+  return `${pageHeading('Results & Slips', 'Enter official marks when available and print a student result slip.', `${state.data.results.length} entries`)}<div class="registration-banner"><div class="registration-banner-icon">${icon('info')}</div><div><strong>Results are never generated automatically.</strong><p>Leave marks and grade blank to save a Pending entry. Enter only approved results supplied by Academic Registry.</p></div></div><div class="admin-grid"><form class="page-card form-card" id="result-form"><div class="form-heading"><div><h2>Enter a result</h2><p>Choose the student and course, then enter official values.</p></div><span class="form-icon">${icon('chart')}</span></div><div class="form-grid"><label>Student<select name="student_id" required><option value="">Choose a student</option>${students.map(s => `<option value="${s.id}">${escapeHtml(s.full_name)} · ${escapeHtml(s.student_number)}</option>`).join('')}</select></label><label>Course<select name="course_id" required><option value="">Choose a course</option>${courses.map(c => `<option value="${c.id}">${escapeHtml(c.code)} · ${escapeHtml(c.title)}</option>`).join('')}</select></label><label>Semester<input name="semester" value="Semester 3, 2026" required /></label><label>Marks <span class="field-note">0–100, optional</span><input name="marks" type="number" min="0" max="100" step="0.01" placeholder="Leave blank for pending" /></label><label>Grade <span class="field-note">Optional</span><input name="grade" maxlength="8" placeholder="e.g. A" /></label><label>Grade point <span class="field-note">0–4, optional</span><input name="grade_point" type="number" min="0" max="4" step="0.01" placeholder="e.g. 4.0" /></label></div><button class="primary-button form-submit" type="submit">Save result ${icon('check')}</button></form><div class="page-card admin-note"><div class="resource-icon">${icon('file')}</div><strong>Print a result slip</strong><p>After entering a student’s results, use the Print slip action. The browser print dialog lets you choose “Save as PDF”.</p><p>The slip includes the logo and the official KeMU contact header supplied for this portal.</p></div></div><div class="page-card"><div class="filter-row"><div><h2>Result entries</h2><p class="card-header" style="padding:6px 0 0;color:var(--muted);font-size:11px">Pending values remain visibly marked until entered and published.</p></div></div><div class="table-wrap"><table><thead><tr><th>Student</th><th>Course</th><th>Semester</th><th>Result</th><th>Action</th></tr></thead><tbody>${state.data.results.length ? state.data.results.map(r => `<tr><td><strong>${escapeHtml(r.student_name)}</strong><small>${escapeHtml(r.student_number)}</small></td><td><strong>${escapeHtml(r.code)}</strong><small>${escapeHtml(r.title)}</small></td><td>${escapeHtml(r.semester)}</td><td><span class="status-pill ${r.status === 'pending' ? 'pending-pill' : ''}">${r.status === 'pending' ? 'Pending' : `${r.marks ?? '—'} · ${escapeHtml(r.grade || '—')}`}</span></td><td><button class="table-action" data-slip-result="${r.student_id}">Print slip</button></td></tr>`).join('') : `<tr><td colspan="5"><div class="empty-state"><h2>No results entered</h2><p>Add the first result above.</p></div></td></tr>`}</tbody></table></div></div>`;
+}
+function studentResultsView() { const results = state.data.results || []; return `${pageHeading('Results', 'Review your published results and download a printable result slip.', `${results.filter(r => r.status === 'published').length} published`)}<div class="page-card"><div class="filter-row"><div><h2>Academic results</h2><p class="card-header" style="padding:6px 0 0;color:var(--muted);font-size:11px">Pending entries are not official results.</p></div><button class="primary-small" data-student-slip>Download result slip ${icon('file')}</button></div><div class="table-wrap"><table><thead><tr><th>Course</th><th>Semester</th><th>Credits</th><th>Marks</th><th>Grade</th></tr></thead><tbody>${results.length ? results.map(r => `<tr><td><strong>${escapeHtml(r.code)}</strong><small>${escapeHtml(r.title)}</small></td><td>${escapeHtml(r.semester)}</td><td>${number(r.credits)}</td><td>${r.marks === null ? 'Pending' : r.marks}</td><td>${escapeHtml(r.grade || 'Pending')}</td></tr>`).join('') : `<tr><td colspan="5"><div class="empty-state"><h2>No results available</h2><p>Academic Registry has not published results for your account.</p></div></td></tr>`}</tbody></table></div></div>`; }
 
-  <div class="panel"><div class="panel-header"><h2>Register units for a student</h2></div>
-  <div class="form-grid">
-    <label class="field"><span>Student</span>
-      <select data-admin-student>
-        <option value="">Select student…</option>
-        ${students.map(s => `<option value="${s.id}" ${s.id === selectedStudentId ? 'selected' : ''}>${escapeHtml(s.student_number)} — ${escapeHtml(s.full_name)} (${escapeHtml(s.programme || '')})</option>`).join('')}
-      </select>
-    </label>
-    <label class="field"><span>Search units</span>
-      <input type="search" data-admin-unit-filter placeholder="Code or title…" value="${escapeHtml(state.adminUnitFilter || '')}" ${selectedStudentId ? '' : 'disabled'} />
-    </label>
-  </div>
-  ${selectedStudentId ? `
-  <p class="panel-note">Tick units below, then click <strong>Register selected units</strong>. Already registered units are hidden.</p>
-  <div class="table-wrap" style="max-height:320px;overflow:auto">
-    <table>
-      <thead><tr><th></th><th>Code</th><th>Unit title</th><th>Credits</th><th>Seats</th></tr></thead>
-      <tbody>
-        ${selectable.length ? selectable.slice(0, 200).map(c => {
-          const checked = basket.has(c.id);
-          return `<tr class="${checked ? 'row-selected' : ''}">
-            <td><input type="checkbox" data-admin-toggle-unit="${c.id}" ${checked ? 'checked' : ''} /></td>
-            <td><strong>${escapeHtml(c.code)}</strong></td>
-            <td>${escapeHtml(c.title)}</td>
-            <td>${c.credits || 3}</td>
-            <td>${c.seats_remaining ?? '—'}</td>
-          </tr>`;
-        }).join('') : '<tr><td colspan="5" class="empty-copy">No selectable units (all registered or none match search).</td></tr>'}
-      </tbody>
-    </table>
-  </div>
-  <div class="selection-actions" style="margin-top:12px">
-    <button type="button" class="secondary-button" data-action="admin-clear-basket" ${basket.size ? '' : 'disabled'}>Clear selection</button>
-    <button type="button" class="primary-button" data-action="admin-register-basket" ${basket.size ? '' : 'disabled'}>Register selected units (${basket.size})</button>
-  </div>` : '<p class="empty-copy">Select a student to choose units.</p>'}
-  </div>
-
-  <div class="panel"><div class="panel-header"><h2>Active registrations (${registrations.length})</h2></div>
-  <div class="table-wrap"><table><thead><tr><th>Student</th><th>Reg. No</th><th>Course</th><th>Registered</th><th></th></tr></thead>
-  <tbody>${registrations.length ? registrations.map(r => `<tr><td>${escapeHtml(r.student_name)}</td><td>${escapeHtml(r.student_number)}</td><td>${escapeHtml(r.code)} — ${escapeHtml(r.title)}</td><td>${formatDate(r.registered_at)}</td><td><button class="text-button" data-admin-withdraw="${r.id}">Withdraw</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty-copy">No active registrations.</td></tr>'}</tbody></table></div></div>`;
+function genericPage(section) {
+  const content = {
+    timetable: ['Timetable', 'A clear view of the week ahead.', 'Your timetable will reflect the courses on your active registration record.'],
+    results: ['Results', 'Track your progress across completed semesters.', 'Results are available once the Academic Registry publishes them for your account.'],
+    fees: ['Fees', 'A simple summary of your current student account.', 'This demo displays an illustrative balance only. Use approved university finance channels for official statements and payments.'],
+    library: ['Library', 'Find the resources that keep your learning moving.', 'Browse e-journals, past papers, and reading lists through the main KeMU library service.'],
+    support: ['Support', 'The right place to ask, find, or get unstuck.', 'Contact your school office, Academic Registry, Student Affairs, or the Student Help Desk for help with your record.']
+  }[section];
+  return `${pageHeading(content[0], content[1])}<div class="page-card empty-state"><div class="empty-icon">${icon(section === 'fees' ? 'wallet' : section === 'library' ? 'library' : section === 'support' ? 'headset' : section === 'results' ? 'chart' : 'calendar')}</div><h2>${content[0]} workspace ready</h2><p>${content[2]}</p><button class="primary-button" data-action="notifications">Show latest portal guidance ${icon('arrow')}</button></div>`;
 }
 
 function renderView() {
-  if (state.auth?.role === 'admin') return ({ admin: adminOverview, students: studentsView, courses: coursesView, registrations: registrationsView }[state.activeSection] || adminOverview)();
-  return ({ overview: studentOverview, profile: profileView, registration: registrationView, timetable: () => genericPage('timetable'), results: resultsView, fees: feesView, library: () => genericPage('library'), support: () => genericPage('support') }[state.activeSection] || studentOverview)();
+  if (state.auth?.role === 'admin') return ({ admin: adminOverview, students: studentsView, courses: coursesView, registrations: registrationsView, results: resultEntryView }[state.activeSection] || adminOverview)();
+  return ({ overview: studentOverview, registration: registrationView, timetable: () => genericPage('timetable'), results: studentResultsView, fees: () => genericPage('fees'), library: () => genericPage('library'), support: () => genericPage('support') }[state.activeSection] || studentOverview)();
 }
 
 function render() {
   const app = document.querySelector('#app');
-  if (!app) return;
-  if (state.loading) { app.innerHTML = `<div class="loading-page">${brandMark(56)}<div class="loading-spinner"></div><p>Connecting to your portal…</p></div>`; return; }
-  if (!state.auth) { app.innerHTML = loginView(); bindInteractions(); return; }
+  if (state.loading) { document.body.classList.remove('menu-open'); app.innerHTML = `<div class="loading-page"><img src="${logoPath}" alt="KeMU" /><div class="loading-spinner"></div><p>Connecting to your portal…</p>`; return; }
+  if (!state.auth) { document.body.classList.remove('menu-open'); app.innerHTML = loginView(); return; }
   app.innerHTML = `<div class="portal-shell">${sidebar()}<div class="mobile-overlay ${state.mobileMenu ? 'visible' : ''}" data-action="toggle-menu"></div><main class="portal-main"><div class="page-content">${topbar()}${renderView()}</div></main></div>`;
+  document.body.classList.toggle('menu-open', state.mobileMenu);
   bindInteractions();
 }
 
@@ -681,6 +194,8 @@ async function refreshData() {
 
 async function submitForm(form, path) {
   const payload = Object.fromEntries(new FormData(form).entries());
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit) { submit.disabled = true; submit.classList.add('is-loading'); }
   try {
     const result = await apiRequest(path, { method: 'POST', body: JSON.stringify(payload) });
     state.data = state.auth.role === 'admin' ? { ...state.data, ...result } : result;
@@ -689,298 +204,27 @@ async function submitForm(form, path) {
     showToast('Saved successfully.', 'success');
   } catch (error) {
     showToast(error.message, 'error');
+    if (submit) { submit.disabled = false; submit.classList.remove('is-loading'); }
   }
 }
 
 function bindInteractions() {
   document.querySelectorAll('[data-nav]').forEach(button => button.addEventListener('click', () => { state.activeSection = button.dataset.nav; state.mobileMenu = false; render(); }));
   document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click', () => { state.mobileMenu = !state.mobileMenu; render(); });
+  document.querySelector('[data-action="notifications"]')?.addEventListener('click', () => showToast('You’re all caught up with the latest portal guidance.'));
+  document.querySelector('[data-action="statement"]')?.addEventListener('click', () => showToast('Sample statement prepared — no official finance record was generated.'));
+  document.querySelector('[data-action="refresh"]')?.addEventListener('click', async () => { try { await refreshData(); showToast('Course list refreshed.'); } catch (error) { showToast(error.message, 'error'); } });
   document.querySelector('[data-action="logout"]')?.addEventListener('click', async () => { const button = document.querySelector('[data-action="logout"]'); if (button) button.disabled = true; await apiRequest('/api/auth/logout', { method: 'POST' }).catch(() => {}); state.auth = null; state.data = null; state.loading = false; render(); showToast('You have been signed out.'); });
   document.querySelectorAll('[data-course-toggle]').forEach(button => button.addEventListener('click', () => { const index = Number(button.dataset.courseToggle); state.expandedCourses.has(index) ? state.expandedCourses.delete(index) : state.expandedCourses.add(index); render(); }));
   document.querySelectorAll('[data-register]').forEach(button => button.addEventListener('click', async () => { button.disabled = true; try { state.data = await apiRequest('/api/registrations', { method: 'POST', body: JSON.stringify({ course_id: button.dataset.register }) }); render(); showToast('Course registered successfully.', 'success'); } catch (error) { button.disabled = false; showToast(error.message, 'error'); } }));
   document.querySelectorAll('[data-withdraw]').forEach(button => button.addEventListener('click', async () => { if (!confirm('Withdraw from this course? Your registration history will be preserved.')) return; try { state.data = await apiRequest(`/api/registrations/${button.dataset.withdraw}`, { method: 'DELETE' }); render(); showToast('Course withdrawn from your active registration.', 'success'); } catch (error) { showToast(error.message, 'error'); } }));
-
-  document.querySelectorAll('[data-toggle-unit]').forEach(el => {
-    const handler = event => {
-      event.preventDefault();
-      event.stopPropagation();
-      const id = el.dataset.toggleUnit;
-      if (!id) return;
-      if (state.selectedUnits.has(id)) state.selectedUnits.delete(id);
-      else state.selectedUnits.add(id);
-      render();
-    };
-    el.addEventListener('change', handler);
-    el.addEventListener('click', event => {
-      // For buttons (Remove) use click; for checkboxes change already fires
-      if (el.tagName === 'BUTTON') handler(event);
-    });
-  });
-  document.querySelector('[data-unit-filter]')?.addEventListener('input', event => {
-    state.unitFilter = event.target.value || '';
-    // debounce-ish: re-render on change
-    clearTimeout(window.__unitFilterTimer);
-    window.__unitFilterTimer = setTimeout(() => render(), 200);
-  });
-  document.querySelector('[data-action="clear-basket"]')?.addEventListener('click', () => {
-    state.selectedUnits.clear();
-    render();
-  });
-  document.querySelector('[data-action="register-basket"]')?.addEventListener('click', async () => {
-    const ids = [...state.selectedUnits];
-    if (!ids.length) return;
-    const button = document.querySelector('[data-action="register-basket"]');
-    if (button) button.disabled = true;
-    let ok = 0, fail = 0;
-    for (const course_id of ids) {
-      try {
-        state.data = await apiRequest('/api/registrations', { method: 'POST', body: JSON.stringify({ course_id }) });
-        state.selectedUnits.delete(course_id);
-        ok += 1;
-      } catch (error) {
-        fail += 1;
-      }
-    }
-    render();
-    if (ok) showToast(`${ok} unit(s) registered successfully.`, 'success');
-    if (fail) showToast(`${fail} unit(s) could not be registered.`, 'error');
-  });
-
   document.querySelectorAll('[data-admin-withdraw]').forEach(button => button.addEventListener('click', async () => { if (!confirm('Withdraw this student registration?')) return; try { state.data = { ...state.data, ...(await apiRequest(`/api/admin/registrations/${button.dataset.adminWithdraw}`, { method: 'DELETE' })) }; render(); showToast('Registration withdrawn.', 'success'); } catch (error) { showToast(error.message, 'error'); } }));
-  document.querySelector('#student-form')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const mode = form.dataset.mode;
-    const payload = Object.fromEntries(new FormData(form).entries());
-    try {
-      if (mode === 'edit') {
-        const id = form.dataset.studentId;
-        state.data = { ...state.data, ...(await apiRequest(`/api/admin/students/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })) };
-        state.editingStudentId = null;
-        showToast('Student updated.', 'success');
-      } else {
-        state.data = { ...state.data, ...(await apiRequest('/api/admin/students', { method: 'POST', body: JSON.stringify(payload) })) };
-        showToast('Student added.', 'success');
-      }
-      render();
-    } catch (error) {
-      showToast(error.message, 'error');
-    }
-  });
-  document.querySelector('#course-form')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const mode = form.dataset.mode;
-    const payload = Object.fromEntries(new FormData(form).entries());
-    payload.trimester = Number(payload.trimester) || 3;
-    if (!payload.programme && state.selectedProgramme) payload.programme = state.selectedProgramme;
-    try {
-      if (mode === 'edit') {
-        const id = form.dataset.courseId;
-        state.data = { ...state.data, ...(await apiRequest(`/api/admin/courses/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })) };
-        state.editingCourseId = null;
-        if (payload.programme) state.selectedProgramme = payload.programme;
-        showToast(`Unit ${payload.code} updated for ${payload.programme || 'programme'}.`, 'success');
-      } else {
-        state.data = { ...state.data, ...(await apiRequest('/api/admin/courses', { method: 'POST', body: JSON.stringify(payload) })) };
-        if (payload.programme) state.selectedProgramme = payload.programme;
-        showToast(`Unit ${payload.code} added to Trimester ${payload.trimester}.`, 'success');
-      }
-      render();
-    } catch (error) {
-      showToast(error.message, 'error');
-    }
-  });
-  document.querySelectorAll('[data-edit-course]').forEach(button => button.addEventListener('click', () => {
-    state.editingCourseId = button.dataset.editCourse;
-    state.activeSection = 'courses';
-    render();
-  }));
-  document.querySelector('[data-action="cancel-edit-course"]')?.addEventListener('click', () => {
-    state.editingCourseId = null;
-    render();
-  });
-  document.querySelectorAll('[data-delete-course]').forEach(button => button.addEventListener('click', async () => {
-    if (!confirm(`Delete course ${button.dataset.code}? Related registrations will be removed.`)) return;
-    try {
-      state.data = { ...state.data, ...(await apiRequest(`/api/admin/courses/${button.dataset.deleteCourse}`, { method: 'DELETE' })) };
-      if (state.editingCourseId === button.dataset.deleteCourse) state.editingCourseId = null;
-      render();
-      showToast('Course deleted.', 'success');
-    } catch (error) {
-      showToast(error.message, 'error');
-    }
-  }));
+  document.querySelector('#student-form')?.addEventListener('submit', event => { event.preventDefault(); submitForm(event.currentTarget, '/api/admin/students'); });
+  document.querySelector('#course-form')?.addEventListener('submit', event => { event.preventDefault(); submitForm(event.currentTarget, '/api/admin/courses'); });
   document.querySelector('#assignment-form')?.addEventListener('submit', event => { event.preventDefault(); submitForm(event.currentTarget, '/api/admin/registrations'); });
-
-  // Admin: select student for bulk unit registration
-  document.querySelector('[data-admin-student]')?.addEventListener('change', event => {
-    state.adminSelectedStudent = event.target.value || '';
-    state.adminSelectedUnits = new Set();
-    render();
-  });
-  document.querySelector('[data-admin-unit-filter]')?.addEventListener('input', event => {
-    state.adminUnitFilter = event.target.value || '';
-    clearTimeout(window.__adminUnitFilterTimer);
-    window.__adminUnitFilterTimer = setTimeout(() => render(), 200);
-  });
-  document.querySelectorAll('[data-admin-toggle-unit]').forEach(el => {
-    el.addEventListener('change', () => {
-      const id = el.dataset.adminToggleUnit;
-      if (!id) return;
-      if (!state.adminSelectedUnits) state.adminSelectedUnits = new Set();
-      if (state.adminSelectedUnits.has(id)) state.adminSelectedUnits.delete(id);
-      else state.adminSelectedUnits.add(id);
-      render();
-    });
-  });
-  document.querySelector('[data-action="admin-clear-basket"]')?.addEventListener('click', () => {
-    state.adminSelectedUnits = new Set();
-    render();
-  });
-  document.querySelector('[data-action="admin-register-basket"]')?.addEventListener('click', async () => {
-    const student_id = state.adminSelectedStudent;
-    const ids = [...(state.adminSelectedUnits || [])];
-    if (!student_id || !ids.length) return;
-    const button = document.querySelector('[data-action="admin-register-basket"]');
-    if (button) button.disabled = true;
-    let ok = 0, fail = 0;
-    for (const course_id of ids) {
-      try {
-        state.data = { ...state.data, ...(await apiRequest('/api/admin/registrations', { method: 'POST', body: JSON.stringify({ student_id, course_id }) })) };
-        state.adminSelectedUnits.delete(course_id);
-        ok += 1;
-      } catch (error) {
-        fail += 1;
-      }
-    }
-    render();
-    if (ok) showToast(`${ok} unit(s) registered for student.`, 'success');
-    if (fail) showToast(`${fail} unit(s) could not be registered.`, 'error');
-  });
-
-  document.querySelector('#admin-password-form')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const payload = Object.fromEntries(new FormData(form).entries());
-    try {
-      await apiRequest('/api/admin/password', { method: 'POST', body: JSON.stringify(payload) });
-      form.reset();
-      showToast('Admin password updated.', 'success');
-    } catch (error) {
-      showToast(error.message, 'error');
-    }
-  });
-  document.querySelectorAll('[data-edit-student]').forEach(button => button.addEventListener('click', () => {
-    state.editingStudentId = button.dataset.editStudent;
-    state.activeSection = 'students';
-    render();
-  }));
-  document.querySelector('[data-action="cancel-edit"]')?.addEventListener('click', () => {
-    state.editingStudentId = null;
-    render();
-  });
-  document.querySelectorAll('[data-delete-student]').forEach(button => button.addEventListener('click', async () => {
-    if (!confirm(`Delete student ${button.dataset.name}? This also removes their registrations.`)) return;
-    try {
-      state.data = { ...state.data, ...(await apiRequest(`/api/admin/students/${button.dataset.deleteStudent}`, { method: 'DELETE' })) };
-      if (state.editingStudentId === button.dataset.deleteStudent) state.editingStudentId = null;
-      render();
-      showToast('Student deleted.', 'success');
-    } catch (error) {
-      showToast(error.message, 'error');
-    }
-  }));
-  document.querySelectorAll('[data-reset-password]').forEach(button => button.addEventListener('click', async () => {
-    const pwd = prompt(`Reset password for ${button.dataset.reg}. Enter new password (default 123456):`, '123456');
-    if (pwd === null) return;
-    try {
-      state.data = { ...state.data, ...(await apiRequest(`/api/admin/students/${button.dataset.resetPassword}/reset-password`, { method: 'POST', body: JSON.stringify({ password: pwd || '123456' }) })) };
-      render();
-      showToast('Password reset.', 'success');
-    } catch (error) {
-      showToast(error.message, 'error');
-    }
-  }));
-
-  document.querySelector('#fee-pay-form')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const payload = Object.fromEntries(new FormData(form).entries());
-    // empty amount → full remaining (server treats missing/0 as full)
-    if (payload.amount === '' || payload.amount === undefined) delete payload.amount;
-    else payload.amount = Number(payload.amount);
-    const button = form.querySelector('button[type="submit"]');
-    if (button) button.disabled = true;
-    try {
-      const res = await apiRequest('/api/fees/pay', { method: 'POST', body: JSON.stringify(payload) });
-      state.data = res;
-      render();
-      showToast(res.message || 'Payment recorded successfully.', 'success');
-    } catch (error) {
-      showToast(error.message, 'error');
-      if (button) button.disabled = false;
-    }
-  });
-  document.querySelector('#admin-fee-clear-form')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const payload = Object.fromEntries(new FormData(form).entries());
-    if (payload.scope === 'current') payload.term_key = 'T3-2026';
-    delete payload.scope;
-    try {
-      state.data = { ...state.data, ...(await apiRequest('/api/admin/fees/clear', { method: 'POST', body: JSON.stringify(payload) })) };
-      render();
-      showToast('Fee balance cleared.', 'success');
-    } catch (error) {
-      showToast(error.message, 'error');
-    }
-  });
-  document.querySelector('[data-action="download-results"]')?.addEventListener('click', () => {
-    const results = state.data?.results;
-    const student = state.data?.student;
-    if (!results || !student) return;
-    let text = `KeMU Student Portal — Provisional Results\n`;
-    text += `${student.full_name} | ${student.student_number}\n`;
-    text += `Programme: ${student.programme}\n`;
-    text += `CGPA: ${results.summary?.cgpa ?? '—'} | Credits: ${results.summary?.totalCredits || 0}\n`;
-    text += `Generated: ${new Date().toLocaleString()}\n`;
-    text += `${results.note || ''}\n\n`;
-    for (const sem of results.semesters || []) {
-      const units = (sem.units || []).slice(0, 6);
-      text += `=== ${sem.semester} (GPA ${sem.gpa}) — ${units.length} units ===\n`;
-      for (const u of units) {
-        text += `  ${u.code}  ${u.title}  ${u.credits}cr  Grade ${u.grade}  (${u.points})\n`;
-      }
-      text += `\n`;
-    }
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `KeMU-Results-${(student.student_number || 'student').replace(/[\\/]/g, '-')}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Results downloaded.', 'success');
-  });
-
-  document.querySelector('#local-login-form')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const payload = Object.fromEntries(new FormData(form).entries());
-    const button = form.querySelector('button[type="submit"]');
-    if (button) button.disabled = true;
-    state.loginError = '';
-    try {
-      await apiRequest('/api/auth/local-login', { method: 'POST', body: JSON.stringify(payload) });
-      await bootstrap();
-      showToast('Signed in successfully.', 'success');
-    } catch (error) {
-      state.loginError = error.message || 'Login failed.';
-      if (button) button.disabled = false;
-      render();
-    }
-  });
+  document.querySelector('#result-form')?.addEventListener('submit', event => { event.preventDefault(); submitForm(event.currentTarget, '/api/admin/results'); });
+  document.querySelector('[data-student-slip]')?.addEventListener('click', () => openResultSlip(state.data.student, state.data.results || []));
+  document.querySelectorAll('[data-slip-result]').forEach(button => button.addEventListener('click', () => { const results = (state.data.results || []).filter(result => result.student_id === button.dataset.slipResult); const student = (state.data.students || []).find(item => item.id === button.dataset.slipResult); if (student) openResultSlip(student, results); }));
 }
 
 render();
